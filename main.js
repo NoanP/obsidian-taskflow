@@ -5,7 +5,7 @@ const STATES = {open:'Offen', progress:'In Arbeit', delayed:'Verzögert', done:'
 const PRIORITIES={high:'Hoch',normal:'Normal',low:'Niedrig'};
 const localDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const today=()=>localDay(new Date());
-function completionDay(value){const d=new Date(value);return Number.isNaN(d.getTime())?'':localDay(d);}
+function completionDay(value){if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':localDay(d);}
 function duePresentation(task){
   if(task.meta.status==='done')return {kind:'closed',label:'Abgeschlossen'};
   const due=dateValue(task.meta.due);
@@ -17,6 +17,38 @@ function duePresentation(task){
 function moveFrames(from,to,shadow){
   const dx=from.left-to.left,dy=from.top-to.top;
   return [{transform:`translate(${dx}px, ${dy}px) scale(1)`},{transform:`translate(${dx*.45}px, ${dy*.45-12}px) scale(1.025)`,boxShadow:shadow,offset:.52},{transform:'translate(0, 0) scale(1)'}];
+}
+// Calendar-day aggregation keeps DST changes and the selected local day consistent.
+function calendarDays(count,now=new Date()){
+  const days=[];
+  for(let i=count-1;i>=0;i--){const date=new Date(now);date.setHours(12,0,0,0);date.setDate(date.getDate()-i);days.push({key:localDay(date),count:0});}
+  return days;
+}
+function analytics(tasks,period=14,now=new Date()){
+  const days=calendarDays(period,now),byDay=new Map(days.map(d=>[d.key,d]));
+  const summary=summarize(tasks),current=localDay(now),soon=new Date(now);soon.setDate(soon.getDate()+7);
+  const due={late:0,today:0,week:0,later:0,none:0},priority={high:0,normal:0,low:0},tags=new Map();let missingCompletion=0;
+  for(const task of tasks){
+    const done=task.meta.status==='done';
+    if(done){const day=completionDay(task.meta.completed);if(!day)missingCompletion++;if(byDay.has(day))byDay.get(day).count++;}
+    else{
+      const date=dateValue(task.meta.due);
+      if(!date)due.none++;else if(date<current)due.late++;else if(date===current)due.today++;else if(date<=localDay(soon))due.week++;else due.later++;
+      priority[Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal']++;
+    }
+    for(const tag of new Set(task.meta.tags||[])){
+      if(!tags.has(tag))tags.set(tag,{tag,total:0,done:0});const row=tags.get(tag);row.total++;if(done)row.done++;
+    }
+  }
+  summary.overdue=due.late;
+  // Long ranges use seven-day bins, retaining every day including a final partial week.
+  const step=period>30?7:1,bins=[];
+  for(let i=0;i<days.length;i+=step){const group=days.slice(i,i+step);bins.push({start:group[0].key,end:group[group.length-1].key,count:group.reduce((s,d)=>s+d.count,0)});}
+  return {summary,active:summary.total-summary.done,rate:summary.total?Math.round(summary.done/summary.total*100):0,days,bins,completed:days.reduce((s,d)=>s+d.count,0),due,priority,missingCompletion,tags:[...tags.values()].sort((a,b)=>b.total-a.total||a.tag.localeCompare(b.tag))};
+}
+function svgElement(parent,name,attributes={}){
+  const el=parent.ownerDocument.createElementNS('http://www.w3.org/2000/svg',name);
+  for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));parent.appendChild(el);return el;
 }
 function dateValue(v) { return v instanceof Date ? v.toISOString().slice(0,10) : typeof v === 'string' ? v.slice(0,10) : ''; }
 function decode(raw) {
@@ -62,7 +94,7 @@ class TaskEditor extends Modal {
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.showArchive=false;this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
   async onClose(){this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
@@ -99,10 +131,9 @@ class TaskView extends ItemView {
     c.empty();c.addClass('tf-root');
     const all=this.plugin.tasks.filter(t=>!!t.meta.archived===this.showArchive),s=summarize(all);
     const shell=c.createDiv({cls:'tf-shell'});
-    const top=shell.createDiv({cls:'tf-topbar'});top.createSpan({text:'TaskFlow',cls:'tf-brand'});top.createSpan({text:'/ Mein Arbeitsbereich',cls:'tf-top-path'});top.createSpan({text:'Paper Studio',cls:'tf-top-edition'});
     const workspace=shell.createDiv({cls:'tf-workspace'});
     const side=workspace.createEl('nav',{cls:'tf-sidebar',attr:{'aria-label':'TaskFlow Navigation'}});
-    side.createDiv({text:'Arbeitsbereich',cls:'tf-side-label'});
+    side.createDiv({text:'TaskFlow',cls:'tf-side-label'});
     const navigate=(mode,archive)=>{this.mode=mode;this.showArchive=archive;this.render();};
     button(side,'Board',()=>navigate('board',false),'tf-side-item'+(!this.showArchive&&this.mode==='board'?' is-active':''));
     button(side,'Statistik',()=>navigate('stats',false),'tf-side-item'+(!this.showArchive&&this.mode==='stats'?' is-active':''));
@@ -115,9 +146,10 @@ class TaskView extends ItemView {
     side.createDiv({text:'Lokal im Vault',cls:'tf-side-footer'});
     const main=workspace.createDiv({cls:'tf-main'});
     const header=main.createDiv({cls:'tf-header'}),title=header.createDiv();
-    title.createEl('h1',{text:this.showArchive?'Dein Aufgabenarchiv.':this.mode==='stats'?'Fortschritt im Blick.':'Raum für das Wesentliche.'});
+    title.createEl('h1',{text:this.showArchive?(this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='stats'?'Analyse & Statistik':'Meine Aufgaben'});
     title.createEl('p',{text:new Date().toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'})+' · Mein Arbeitsbereich',cls:'tf-muted tf-subtitle'});
     button(header,'+ Neue Aufgabe',()=>new TaskEditor(this.plugin).open(),'tf-primary');
+    if(this.mode!=='stats'){
     const summary=main.createDiv({cls:'tf-summary'});
     for(const [key,label]of Object.entries({total:'gesamt',open:'offen',progress:'in Arbeit',delayed:'verzögert',done:'erledigt'})){
       const item=summary.createSpan();item.createEl('strong',{text:String(s[key])});item.appendText(' '+label);
@@ -127,6 +159,7 @@ class TaskView extends ItemView {
     focusBar.createEl('strong',{text:this.showArchive?'Archiv': 'Heute im Fokus'});
     focusBar.createSpan({text:this.showArchive?`${all.length} archivierte Aufgaben`:dueToday.length?dueToday.map(t=>t.meta.title).slice(0,2).join(' · '):'Keine Aufgaben heute fällig',cls:'tf-focus-text'});
     focusBar.createSpan({text:s.overdue?`${s.overdue} überfällig`:'Keine überfälligen Aufgaben',cls:s.overdue?'tf-due tf-due-late':'tf-muted'});
+    }
     const toolbar=main.createDiv({cls:'tf-toolbar'});
     toolbar.createSpan({text:this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
     if(this.showArchive)button(toolbar,this.mode==='stats'?'Kanban':'Statistik',()=>{this.mode=this.mode==='stats'?'board':'stats';this.render();},'tf-text-button');
@@ -189,8 +222,8 @@ class TaskView extends ItemView {
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
     const subs=subtasks(t.body);
-    if(subs.length){card.createDiv({text:`Teilaufgaben: ${subs.filter(x=>x[1]!==' ').length}/${subs.length}`,cls:'tf-subtask-summary'});subs.forEach((sub,index)=>{
-      const label=card.createEl('label',{cls:'tf-subtask'});const check=label.createEl('input',{type:'checkbox'});check.checked=sub[1]!==' ';label.createSpan({text:sub[2]});
+    if(subs.length){const details=card.createEl('details',{cls:'tf-subtasks'});details.open=this.expandedTasks.has(t.file.path);details.createEl('summary',{text:`Teilaufgaben · ${subs.filter(x=>x[1]!==' ').length}/${subs.length}`});details.ontoggle=()=>{if(details.open)this.expandedTasks.add(t.file.path);else this.expandedTasks.delete(t.file.path);};subs.forEach((sub,index)=>{
+      const label=details.createEl('label',{cls:'tf-subtask'});const check=label.createEl('input',{type:'checkbox'});check.checked=sub[1]!==' ';label.createSpan({text:sub[2]});
       check.onchange=async()=>{check.disabled=true;try{await this.plugin.change(t,()=>{},body=>toggleSubtask(body,index),t.raw);}catch(e){report(e);this.render();}};
     });}
     const controls=card.createDiv({cls:'tf-card-actions'});const select=controls.createEl('select');select.setAttribute('aria-label','Status für '+t.meta.title);
@@ -200,19 +233,59 @@ class TaskView extends ItemView {
     button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>m.archived=!m.archived);}catch(e){report(e);}},'tf-text-button');
   }
   renderStats(c,tasks){
-    const s=summarize(tasks),panel=c.createDiv({cls:'tf-statistics'});
-    panel.createEl('h2',{text:'Aufgabenstatistik'});panel.createEl('p',{text:`${s.done} von ${s.total} erledigt · ${s.total?Math.round(s.done/s.total*100):0} % Abschlussquote. Suche und Tagfilter gelten auch hier.`,cls:'tf-muted'});
-    const progress=panel.createEl('progress');progress.max=s.total||1;progress.value=s.done;progress.setAttribute('aria-label','Abschlussquote');
-    panel.createEl('h3',{text:'Statusverteilung'});
-    for(const [key,label]of Object.entries(STATES)){const row=panel.createDiv({cls:'tf-chart-row tf-status-'+key});row.createSpan({text:label});const bar=row.createEl('progress');bar.max=s.total||1;bar.value=s[key];bar.setAttribute('aria-label',label);row.createSpan({text:String(s[key])});}
-    panel.createEl('h3',{text:'Erledigt in den letzten 14 Tagen'});
-    const days=[];for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const key=localDay(d);days.push({key,count:tasks.filter(t=>t.meta.status==='done'&&completionDay(t.meta.completed)===key).length});}
-    const max=Math.max(1,...days.map(d=>d.count));
-    for(const day of days){const row=panel.createDiv({cls:'tf-chart-row'});row.createSpan({text:day.key});const bar=row.createEl('progress');bar.max=max;bar.value=day.count;bar.setAttribute('aria-label','Abschlüsse am '+day.key);row.createSpan({text:String(day.count)});}
-    panel.createEl('h3',{text:'Nach Tags'});const tags=[...new Set(tasks.flatMap(t=>t.meta.tags||[]))].sort();
-    for(const tag of tags){const group=tasks.filter(t=>(t.meta.tags||[]).includes(tag));panel.createEl('p',{text:`#${tag}: ${group.filter(t=>t.meta.status==='done').length} erledigt / ${group.length} gesamt`});}
-    if(!tags.length)panel.createEl('p',{text:'Noch keine Tags vergeben.'});
-    panel.createEl('p',{text:'Wieder geöffnete Aufgaben zählen nicht als erledigt. Archivierte Aufgaben separat im Archiv anzeigen.',cls:'tf-muted'});
+    const period=[7,14,30,90].includes(this.statsDays)?this.statsDays:14;
+    const data=analytics(tasks,period),s=data.summary,panel=c.createDiv({cls:'tf-statistics'});
+    const top=panel.createDiv({cls:'tf-analytics-toolbar'});
+    top.createEl('p',{text:'Aktueller Aufgabenstand und deine Abschlüsse im Zeitverlauf. Suche und Tags gelten für alle Diagramme.',cls:'tf-muted'});
+    const field=top.createEl('label',{cls:'tf-period-label'});field.createSpan({text:'Abschlusszeitraum'});
+    const select=field.createEl('select');select.setAttribute('aria-label','Abschlusszeitraum');select.dataset.tfFocus='period';
+    for(const n of [7,14,30,90])select.createEl('option',{value:String(n),text:n+' Tage'});select.value=String(period);
+    select.onchange=()=>{this.statsDays=Number(select.value);panel.remove();this.renderStats(c,tasks);};
+    const metrics=panel.createDiv({cls:'tf-metrics'});
+    for(const [value,label,detail]of [
+      [data.active,'Aktive Aufgaben','Offen, in Arbeit und verzögert'],
+      [data.completed,'Erledigt im Zeitraum','Letzte '+period+' Kalendertage inkl. heute'],
+      [data.due.late,'Überfällig','Aktive Aufgaben mit vergangenem Termin'],
+      [data.rate+' %','Abschlussquote',s.done+' von '+s.total+' Aufgaben insgesamt']
+    ]){const metric=metrics.createDiv({cls:'tf-metric'});metric.createSpan({text:label,cls:'tf-metric-label'});metric.createEl('strong',{text:String(value),cls:'tf-metric-value'});metric.createSpan({text:detail,cls:'tf-metric-note'});}
+    const grid=panel.createDiv({cls:'tf-analytics-grid'});
+    const activity=grid.createEl('section',{cls:'tf-chart-section tf-chart-wide'});
+    activity.createEl('h2',{text:'Erledigte Aufgaben'});
+    activity.createEl('p',{text:period>30?'Abschlüsse je Sieben-Tage-Abschnitt':'Abschlüsse pro Tag',cls:'tf-chart-caption'});
+    const chart=activity.createDiv({cls:'tf-activity-chart',attr:{role:'img','aria-label':`${data.completed} Aufgaben in den letzten ${period} Tagen erledigt. ${data.bins.map(b=>b.start+(b.end!==b.start?' bis '+b.end:'')+': '+b.count).join('; ')}`}});
+    const max=Math.max(1,...data.bins.map(d=>d.count));
+    const y=chart.createDiv({cls:'tf-activity-y',attr:{'aria-hidden':'true'}});y.createSpan({text:String(max)});y.createSpan({text:'0'});
+    const plot=chart.createDiv({cls:'tf-activity-plot',attr:{'aria-hidden':'true'}});plot.style.setProperty('--tf-bin-count',String(data.bins.length));
+    data.bins.forEach((bin,index)=>{
+      const column=plot.createDiv({cls:'tf-activity-column'});column.setAttribute('title',bin.start+(bin.end!==bin.start?' – '+bin.end:'')+': '+bin.count+' erledigt');
+      const track=column.createDiv({cls:'tf-activity-track'});const bar=track.createDiv({cls:'tf-activity-bar'});bar.style.height=(bin.count/max*100)+'%';
+      const show=index===0||index===data.bins.length-1||index===Math.floor(data.bins.length/2);
+      const label=column.createSpan({text:show?bin.start.slice(8,10)+'.'+bin.start.slice(5,7)+'.':'',cls:'tf-activity-x'});if(!show)label.setAttribute('aria-hidden','true');
+    });
+    if(!data.completed)activity.createEl('p',{text:'Noch keine Abschlüsse in diesem Zeitraum.',cls:'tf-chart-empty'});
+    const activityDetails=activity.createEl('details',{cls:'tf-chart-details'});activityDetails.createEl('summary',{text:'Werte als Tabelle'});
+    const activityTable=activityDetails.createEl('table',{cls:'tf-data-table'}),thead=activityTable.createEl('thead').createEl('tr');thead.createEl('th',{text:period>30?'Zeitraum':'Datum',attr:{scope:'col'}});thead.createEl('th',{text:'Erledigt',attr:{scope:'col'}});
+    const tbody=activityTable.createEl('tbody');for(const bin of data.bins){const row=tbody.createEl('tr');row.createEl('th',{text:bin.start+(bin.end!==bin.start?' – '+bin.end:''),attr:{scope:'row'}});row.createEl('td',{text:String(bin.count)});}
+    const status=grid.createEl('section',{cls:'tf-chart-section'});status.createEl('h2',{text:'Aufgabenstatus'});status.createEl('p',{text:'Aktueller Stand · '+s.total+' Aufgaben',cls:'tf-chart-caption'});
+    const ring=status.createDiv({cls:'tf-donut-wrap'});
+    const svg=svgElement(ring,'svg',{viewBox:'0 0 180 180',role:'img','aria-label':Object.entries(STATES).map(([key,label])=>label+': '+s[key]).join(', '),class:'tf-donut'});
+    svgElement(svg,'circle',{cx:90,cy:90,r:64,fill:'none',class:'tf-donut-track','stroke-width':16});
+    let offset=0;for(const [key]of Object.entries(STATES)){const percent=s.total?s[key]/s.total*100:0;if(percent){svgElement(svg,'circle',{cx:90,cy:90,r:64,fill:'none',pathLength:100,'stroke-width':16,'stroke-dasharray':`${percent} ${100-percent}`,'stroke-dashoffset':-offset,transform:'rotate(-90 90 90)',class:'tf-donut-segment tf-status-'+key});offset+=percent;}}
+    const center=ring.createDiv({cls:'tf-donut-center',attr:{'aria-hidden':'true'}});center.createEl('strong',{text:String(s.total)});center.createSpan({text:'Aufgaben'});
+    const statusLegend=status.createDiv({cls:'tf-status-legend'});
+    for(const [key,label]of Object.entries(STATES)){const row=statusLegend.createDiv({cls:'tf-status-legend-row tf-status-'+key});row.createSpan({cls:'tf-status-dot',attr:{'aria-hidden':'true'}});row.createSpan({text:label});row.createEl('strong',{text:String(s[key])});row.createSpan({text:(s.total?Math.round(s[key]/s.total*100):0)+' %',cls:'tf-muted'});}
+    if(!s.total)status.createEl('p',{text:'Noch keine Aufgaben für diese Auswahl.',cls:'tf-chart-empty'});
+    const deadlines=grid.createEl('section',{cls:'tf-chart-section'});deadlines.createEl('h2',{text:'Fälligkeiten'});deadlines.createEl('p',{text:'Nur aktive Aufgaben · nächste 7 Tage ab morgen',cls:'tf-chart-caption'});
+    const horizontal=(parent,entries,maxValue)=>{for(const entry of entries){const row=parent.createDiv({cls:'tf-hbar-row '+entry.cls});row.createSpan({text:entry.label,cls:'tf-hbar-label'});const track=row.createDiv({cls:'tf-hbar-track',attr:{role:'img','aria-label':entry.label+': '+entry.value}});track.createDiv({cls:'tf-hbar-fill'}).style.width=(maxValue?entry.value/maxValue*100:0)+'%';row.createEl('strong',{text:String(entry.value)});}};
+    horizontal(deadlines,[{label:'Überfällig',value:data.due.late,cls:'tf-bar-late'},{label:'Heute',value:data.due.today,cls:'tf-bar-today'},{label:'Nächste 7 Tage',value:data.due.week,cls:'tf-bar-future'},{label:'Später',value:data.due.later,cls:'tf-bar-future'},{label:'Ohne Termin',value:data.due.none,cls:'tf-bar-neutral'}],data.active);
+    const priorities=grid.createEl('section',{cls:'tf-chart-section'});priorities.createEl('h2',{text:'Prioritäten'});priorities.createEl('p',{text:'Verteilung deiner '+data.active+' aktiven Aufgaben',cls:'tf-chart-caption'});
+    horizontal(priorities,Object.entries(PRIORITIES).map(([key,label])=>({label,value:data.priority[key],cls:'tf-bar-priority tf-priority-'+key})),data.active);
+    const tags=panel.createEl('section',{cls:'tf-chart-section tf-tag-chart'});tags.createEl('h2',{text:'Aufgaben nach Tags'});tags.createEl('p',{text:'Balkenlänge: Anzahl Aufgaben · Erledigt und aktiv je Schlagwort. Aufgaben mit mehreren Tags zählen in jeder zugehörigen Zeile.',cls:'tf-chart-caption'});
+    if(!data.tags.length)tags.createEl('p',{text:'Noch keine Tags in dieser Auswahl.',cls:'tf-chart-empty'});
+    const tagMax=Math.max(1,...data.tags.map(t=>t.total));
+    for(const tag of data.tags){const row=tags.createDiv({cls:'tf-tag-row'});row.createSpan({text:'#'+tag.tag});const stack=row.createDiv({cls:'tf-tag-stack',attr:{role:'img','aria-label':`${tag.tag}: ${tag.done} erledigt, ${tag.total-tag.done} aktiv`}});if(tag.done)stack.createDiv({cls:'tf-tag-done'}).style.width=(tag.done/tagMax*100)+'%';if(tag.total-tag.done)stack.createDiv({cls:'tf-tag-active'}).style.width=((tag.total-tag.done)/tagMax*100)+'%';row.createSpan({text:tag.done+' / '+tag.total+' erledigt'});}
+    if(data.tags.length){const legend=tags.createDiv({cls:'tf-tag-key'});legend.createSpan({text:'Erledigt',cls:'tf-tag-key-done'});legend.createSpan({text:'Aktiv',cls:'tf-tag-key-active'});}
+    const note=panel.createEl('p',{cls:'tf-analytics-note'});note.setText('Die Diagramme zeigen den aktuellen Aufgabenstand und das letzte Abschlussdatum. Wieder geöffnete Aufgaben zählen nicht als erledigt. Archivierte Aufgaben kannst du über Archiv → Statistik auswerten.'+(data.missingCompletion?` ${data.missingCompletion} erledigte Aufgabe(n) ohne gültiges Abschlussdatum sind im Status enthalten, aber nicht im Zeitverlauf.`:''));
   }
 }
 class TaskFlow extends Plugin {
@@ -242,4 +315,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays};

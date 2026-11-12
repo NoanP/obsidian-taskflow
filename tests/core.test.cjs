@@ -60,3 +60,34 @@ test('unchanged scans do not redraw; changed content or path does',async()=>{
  raw=core.encode({taskflow:1,title:'Task',status:'delayed'},'notes');await p.scan();assert.equal(renders,2);
  file.path='TaskFlow/Aufgaben/renamed.md';await p.scan();assert.equal(renders,3);
 });
+test('analytics counts snapshot, due buckets and completions separately',()=>{
+ const now=new Date(2026,10,12,12),items=[
+  {...task('open','2026-11-11'),meta:{taskflow:1,title:'A',status:'open',due:'2026-11-11',priority:'high',tags:['arbeit','arbeit']}},
+  {...task('progress','2026-11-12'),meta:{status:'progress',due:'2026-11-12',priority:'low',tags:['privat']}},
+  {meta:{status:'delayed',due:'2026-11-19',tags:[]}},
+  {meta:{status:'open',due:'2026-11-20',tags:[]}},
+  {meta:{status:'open',due:'',tags:[]}},
+  {meta:{status:'done',due:'2026-11-01',completed:new Date(2026,10,11,12).toISOString(),tags:['arbeit']}},
+  {meta:{status:'done',completed:new Date(2026,9,1,12).toISOString(),tags:[]}},
+  {meta:{status:'done',completed:null,tags:[]}}
+ ];
+ const a=core.analytics(items,7,now);
+ assert.equal(a.active,5);assert.equal(a.completed,1);assert.equal(a.rate,38);
+ for(const key of ['late','today','week','later','none'])assert.equal(a.due[key],1,key);
+ assert.equal(a.priority.high,1);assert.equal(a.priority.low,1);assert.equal(a.priority.normal,3);
+ assert.equal(a.missingCompletion,1);assert.equal(a.tags.find(x=>x.tag==='arbeit').total,2);
+ assert.equal(a.days[0].key,'2026-11-06');assert.equal(a.days[6].key,'2026-11-12');
+});
+test('90-day chart bins retain all days, last partial bin and total',()=>{
+ const now=new Date(2026,10,12,12),days=core.calendarDays(90,now);
+ const items=days.map(d=>({meta:{status:'done',completed:d.key+'T12:00:00',tags:[]}}));
+ const a=core.analytics(items,90,now);
+ assert.equal(a.days.length,90);assert.equal(a.bins.length,13);assert.equal(a.bins[12].count,6);
+ assert.equal(a.completed,90);assert.equal(a.bins.reduce((sum,b)=>sum+b.count,0),90);
+ assert.equal(a.bins[12].end,'2026-11-12');
+});
+test('empty analytics has finite zeros and no phantom chart values',()=>{
+ const a=core.analytics([],14,new Date(2026,10,12,12));
+ assert.equal(a.rate,0);assert.equal(a.completed,0);assert.equal(a.active,0);
+ assert.equal(a.bins.every(b=>b.count===0),true);assert.equal(a.tags.length,0);
+});

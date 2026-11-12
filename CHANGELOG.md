@@ -4,6 +4,26 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
+### Changed
+- TaskFlow übernimmt Hintergrund, Text- und Rahmenfarben des aktuellen Obsidian-Themes.
+- Eigene Fenster-Kopfzeile und feste Maximalbreite entfernt: Board und Analyse nutzen die gesamte Blattbreite.
+- Größere, natürliche Typografie und luftigere Karten; neutrale Überschriften auch mit Zen.
+- Teilaufgaben aufklappbar; der aufgeklappte Zustand bleibt bei Aktualisierungen erhalten.
+- Statistik vollständig neu gestaltet: Kennzahlen, Status-Ringdiagramm, Abschlussverlauf, Fälligkeiten, Prioritäten und Tag-Balken.
+
+### Added
+- Abschlusszeitraum wählbar: 7, 14, 30 oder 90 Kalendertage inklusive heute.
+- 90-Tage-Verlauf mit Sieben-Tage-Abschnitten ohne verlorene Resttage.
+- Exakte Abschlusswerte zusätzlich als aufklappbare Tabelle und beschriftete Diagramme für Screenreader.
+- Klare Leerzustände und Hinweis auf erledigte Aufgaben ohne Abschlussdatum.
+
+### Fixed
+- Theme-Styles machen TaskFlow-Buttons nicht mehr unbeabsichtigt pillenförmig oder Überschriften rot/gelb.
+- Statistik trennt aktuellen Aufgabenstand vom ausgewählten Abschlusszeitraum.
+- Fehlendes Abschlussdatum wird nicht als Datum im Jahr 1970 interpretiert.
+
 ## [0.2.0] - 2026-11-12
 
 ### Added

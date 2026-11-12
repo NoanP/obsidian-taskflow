@@ -25,7 +25,7 @@ Für Updates in BRAT die automatische Prüfung aktivieren oder **Check for updat
 
 ## Gestaltung und Bewegungen ab 0.2.0
 
-Die Arbeitszentrale verwendet **Paper Studio in Puderblau & Apricot** mit Unterstützung für helles und dunkles Obsidian. Die Seitenleiste enthält Board, Statistik, Archiv und die tatsächlich vorhandenen Tags. „Heute im Fokus“ zeigt die ersten beiden heute fälligen aktiven Aufgaben; es sind keine künstlichen Beispieldaten hinterlegt.
+Die Arbeitszentrale übernimmt ab 0.3.0 die nativen Hintergrund-, Text- und Rahmenfarben deines Obsidian-Themes. **Puderblau & Apricot** bleiben als dezente Akzente erhalten. Die feste Maximalbreite und die separate Fenster-Kopfzeile entfallen. Die Seitenleiste enthält Board, Statistik, Archiv und die tatsächlich vorhandenen Tags. „Heute im Fokus“ zeigt die ersten beiden heute fälligen aktiven Aufgaben; es sind keine künstlichen Beispieldaten hinterlegt.
 
 Farben bleiben unabhängig erkennbar:
 
@@ -36,6 +36,21 @@ Farben bleiben unabhängig erkennbar:
 Beim Statuswechsel gleitet die Karte in etwa 430 ms mit einem dezenten Anheben in die Zielspalte. Das gilt für Drag & Drop und die Statusauswahl, wenn die Karte vor und nach dem Wechsel sichtbar ist. Bei aktivierter Betriebssystemoption „Bewegung reduzieren“ wird ohne Animation gewechselt. Auf Touch-Geräten oder mit der Tastatur steht immer die Statusauswahl zur Verfügung; Drag & Drop hängt vom Host ab.
 
 Die Gestaltung passt sich der Breite des Obsidian-Panels an: vier, zwei oder eine Spalte. Das Datenformat bleibt unverändert; es ist keine Migration nötig.
+
+## Analyse und Diagramme ab 0.3.0
+
+Die neue Statistik zeigt:
+
+- **Kennzahlen:** aktive Aufgaben, erledigte Aufgaben im gewählten Zeitraum, aktuell überfällige Aufgaben und Abschlussquote aller ausgewählten Aufgaben.
+- **Abschlussverlauf:** Säulendiagramm für 7/14/30/90 Kalendertage einschließlich heute. Bei 90 Tagen werden je sieben Tage zusammengefasst; die letzte Teilwoche bleibt enthalten. Die genauen Werte stehen zusätzlich unter „Werte als Tabelle“.
+- **Aufgabenstatus:** Ringdiagramm mit Anzahl und Anteil je Status.
+- **Fälligkeiten:** aktive Aufgaben, aufgeteilt in überfällig, heute, nächste sieben Tage ab morgen, später und ohne Termin.
+- **Prioritäten:** Verteilung der aktiven Aufgaben.
+- **Tags:** gestapelte Balken für erledigte und aktive Aufgaben. Die gemeinsame Skala zeigt die Anzahl; mehrfach getaggte Aufgaben zählen pro zugehörigem Tag.
+
+Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezieht sich auf den **Abschlussverlauf** und die Kennzahl „Erledigt im Zeitraum“; Status, Prioritäten und Fälligkeiten zeigen den aktuellen Stand. Erledigte Aufgaben ohne gültiges Abschlussdatum werden im Status mitgezählt, aber nicht zeitlich zugeordnet. Es wird weiterhin nur das letzte Abschlussdatum ausgewertet, keine vollständige Ereignishistorie.
+
+Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
 ## Obsidian-Integration und Daten
 
