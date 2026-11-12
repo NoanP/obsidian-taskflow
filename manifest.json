@@ -1,0 +1,10 @@
+{
+  "id": "taskflow-kanban",
+  "name": "TaskFlow Kanban",
+  "version": "0.1.0",
+  "minAppVersion": "1.7.2",
+  "description": "Kanban, Dashboard und Statistiken mit Tags, Terminen, Notizen und Teilaufgaben in Markdown.",
+  "author": "NoanP",
+  "authorUrl": "https://github.com/NoanP",
+  "isDesktopOnly": false
+}

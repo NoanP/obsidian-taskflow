@@ -1,0 +1,1 @@
+{"name":"obsidian-taskflow","version":"0.1.0","private":true,"description":"Markdown-first Obsidian task management","scripts":{"test":"node --test tests/*.test.cjs","check":"node --check main.js"}}
