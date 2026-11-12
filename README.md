@@ -22,11 +22,26 @@ Für Updates in BRAT die automatische Prüfung aktivieren oder **Check for updat
 - Statistik zeigt den aktuellen Stand und Aufgaben, die in den letzten 14 Tagen erledigt wurden. Wieder geöffnete Aufgaben verlieren das Abschlussdatum; erneutes Erledigen setzt es neu. Es ist keine Ereignishistorie aller Statuswechsel.
 - Archivieren blendet Aufgaben aus dem aktiven Board aus. Im **Archiv** ansehen und wiederherstellen. Es wird nichts gelöscht.
 
+
+## Gestaltung und Bewegungen ab 0.2.0
+
+Die Arbeitszentrale verwendet **Paper Studio in Puderblau & Apricot** mit Unterstützung für helles und dunkles Obsidian. Die Seitenleiste enthält Board, Statistik, Archiv und die tatsächlich vorhandenen Tags. „Heute im Fokus“ zeigt die ersten beiden heute fälligen aktiven Aufgaben; es sind keine künstlichen Beispieldaten hinterlegt.
+
+Farben bleiben unabhängig erkennbar:
+
+- **Priorität:** schmaler Kartenrand, mit Text und Pfeil auf der Karte. Hoch: Altrosé; Normal: Apricot; Niedrig: Puderblau.
+- **Status:** Punkt und Text. Offen: Blau; In Arbeit: Flieder; Verzögert: Apricot; Erledigt: Salbei.
+- **Fälligkeit:** Terminlabel. Überfällig: Altrosé; Heute: Apricot; später: Blau; kein Termin und abgeschlossene Aufgaben: neutral. Erledigte Aufgaben zeigen keine Überfälligkeitswarnung.
+
+Beim Statuswechsel gleitet die Karte in etwa 430 ms mit einem dezenten Anheben in die Zielspalte. Das gilt für Drag & Drop und die Statusauswahl, wenn die Karte vor und nach dem Wechsel sichtbar ist. Bei aktivierter Betriebssystemoption „Bewegung reduzieren“ wird ohne Animation gewechselt. Auf Touch-Geräten oder mit der Tastatur steht immer die Statusauswahl zur Verfügung; Drag & Drop hängt vom Host ab.
+
+Die Gestaltung passt sich der Breite des Obsidian-Panels an: vier, zwei oder eine Spalte. Das Datenformat bleibt unverändert; es ist keine Migration nötig.
+
 ## Obsidian-Integration und Daten
 
 Die erste neue Aufgabe erzeugt `TaskFlow/Aufgaben/<UUID>.md`. Die Frontmatter-Felder sind `taskflow: 1`, `id`, `title`, `status` (`open`, `progress`, `delayed`, `done`), `priority`, `tags`, `due`, `created`, `updated`, optional `completed` und `archived`. Freie Notizen und Teilaufgaben stehen darunter. Dateinamen bleiben bei Titeländerungen stabil; verlinke über Obsidian-Aliasse nach Bedarf.
 
-Bestehende Tasks-, TaskNotes- oder beliebige Markdown-Checkboxen werden in 0.1.0 **nicht automatisch importiert**. Das Dashboard umfasst alle TaskFlow-Aufgaben. Andere Plugins bleiben unabhängig nutzbar. Anlegen, Bearbeiten und Statuswechsel funktionieren ohne diese Plugins.
+Bestehende Tasks-, TaskNotes- oder beliebige Markdown-Checkboxen werden **nicht automatisch importiert**. Das Dashboard umfasst alle TaskFlow-Aufgaben. Andere Plugins bleiben unabhängig nutzbar. Anlegen, Bearbeiten und Statuswechsel funktionieren ohne diese Plugins.
 
 Obsidian Sync/OneDrive synchronisiert die Markdown-Dateien wie andere Vault-Notizen. TaskFlow erkennt Änderungen und verhindert das Überschreiben eines zwischenzeitlich bearbeiteten Dokuments durch einen alten Editor. Das ersetzt keine Backups und löst keine Konflikte zwischen Offline-Geräten. Bei einer Konfliktmeldung zuerst die eigene Eingabe sichern, dann die Aufgabe neu öffnen.
 
@@ -57,7 +72,7 @@ Später genügt z. B.: „Führe NoanP/obsidian-taskflow weiter, ergänze X, akt
 
 ## Prüfung und Grenzen
 
-Automatisierte Tests decken Statuszählung, Fälligkeit, Markdown-Erhaltung, Teilaufgaben, Abschlussdaten und konkurrierende Änderungen ab. Der YAML-Hostadapter ist in Unit-Tests durch JSON (YAML-Teilmenge) ersetzt. Die echte Obsidian-Integration zusätzlich im Vault prüfen. Dies ist eine erste Version 0.1.0; mobile Nutzung und sehr große Aufgabenbestände sind noch nicht ausführlich erprobt.
+Automatisierte Tests decken Statuszählung, Fälligkeit, Markdown-Erhaltung, Teilaufgaben, Abschlussdaten und konkurrierende Änderungen ab. Der YAML-Hostadapter ist in Unit-Tests durch JSON (YAML-Teilmenge) ersetzt. Die echte Obsidian-Integration zusätzlich im Vault prüfen. Dies ist eine frühe Version; mobile Nutzung und sehr große Aufgabenbestände sind noch nicht ausführlich erprobt.
 
 ## Referenzen
 

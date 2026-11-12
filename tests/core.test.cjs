@@ -30,3 +30,33 @@ test('status mutation preserves latest body and metadata',async()=>{
  const p=new Plugin();let raw=core.encode({taskflow:1,title:'Task',status:'open',custom:42},'latest notes');p.app={vault:{process:async(file,fn)=>{raw=fn(raw)}}};p.scan=async()=>{};
  await p.change({file:{}},m=>m.status='done');const decoded=core.decode(raw);assert.equal(decoded.body,'latest notes');assert.equal(decoded.meta.custom,42);assert.equal(decoded.meta.status,'done');assert.ok(decoded.meta.completed);
 });
+test('due labels distinguish overdue, today, future and no date',()=>{
+ assert.equal(core.duePresentation(task('open','2000-01-01')).kind,'late');
+ assert.equal(core.duePresentation(task('progress',core.today())).kind,'today');
+ assert.equal(core.duePresentation(task('delayed','2099-12-31')).kind,'future');
+ assert.equal(core.duePresentation(task('open','')).kind,'none');
+});
+test('completed tasks never show an overdue warning',()=>{
+ const due=core.duePresentation(task('done','2000-01-01'));
+ assert.equal(due.kind,'closed');assert.equal(due.label,'Abgeschlossen');
+});
+test('completion day uses local calendar date rather than UTC prefix',()=>{
+ const date=new Date(2026,10,12,0,15);
+ assert.equal(core.completionDay(date.toISOString()),'2026-11-12');
+ assert.equal(core.completionDay('invalid'),'');
+});
+test('movement begins at old position and ends at destination',()=>{
+ const frames=core.moveFrames({left:100,top:200},{left:500,top:210},'shadow');
+ assert.equal(frames[0].transform,'translate(-400px, -10px) scale(1)');
+ assert.equal(frames[2].transform,'translate(0, 0) scale(1)');
+ assert.equal(frames[1].offset,.52);
+});
+test('unchanged scans do not redraw; changed content or path does',async()=>{
+ const p=new Plugin();let raw=core.encode({taskflow:1,title:'Task',status:'open'},'notes'),renders=0;
+ const file={path:'TaskFlow/Aufgaben/test.md'};
+ p.tasks=[];p.scanVersion=0;p.settings={folder:'TaskFlow/Aufgaben'};
+ p.app={vault:{getMarkdownFiles:()=>[file],read:async()=>raw},workspace:{getLeavesOfType:()=>[{view:{render:()=>renders++}}]}};
+ await p.scan();await p.scan();assert.equal(renders,1);
+ raw=core.encode({taskflow:1,title:'Task',status:'delayed'},'notes');await p.scan();assert.equal(renders,2);
+ file.path='TaskFlow/Aufgaben/renamed.md';await p.scan();assert.equal(renders,3);
+});
