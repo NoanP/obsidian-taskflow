@@ -121,13 +121,36 @@ function dayPlan(tasks,day){
   const pool=tasks.filter(t=>!t.meta.archived&&t.meta.status!=='done'&&dateValue(t.meta.scheduled)!==day).sort((a,b)=>(dateValue(a.meta.scheduled)||dateValue(a.meta.due)||'9999').localeCompare(dateValue(b.meta.scheduled)||dateValue(b.meta.due)||'9999'));
   return {planned,timed,flexible,pool,conflicts,done:planned.filter(t=>t.meta.status==='done').length,minutes:planned.reduce((sum,t)=>sum+durationMinutes(t.meta),0)};
 }
+const CALENDAR_PIXELS_PER_MINUTE=1.4;
+function calendarDropMinute(clientY,columnTop,start,offset=0){return Math.max(0,Math.round(((clientY-columnTop)/CALENDAR_PIXELS_PER_MINUTE+start-offset)/15)*15);}
+function calendarMove(meta,day,start){
+  if(!validDay(day))throw new Error('Bitte einen gültigen Kalendertag wählen.');
+  if(start!==null&&(!Number.isInteger(start)||start<0||start+durationMinutes(meta)>1440))throw new Error('Der Zeitblock passt nicht in diesen Tag. Bitte eine frühere Uhrzeit wählen.');
+  assignDay(meta,day);if(start===null)delete meta.scheduledTime;else meta.scheduledTime=clockTime(start);validatePlanning(meta);
+}
+function calendarEvents(tasks,day){
+  const timed=tasks.filter(t=>!t.meta.archived&&dateValue(t.meta.scheduled)===day&&timeMinutes(t.meta.scheduledTime)!==null).map(task=>({task,start:timeMinutes(task.meta.scheduledTime),duration:durationMinutes(task.meta)})).sort((a,b)=>a.start-b.start||b.duration-a.duration||a.task.file.path.localeCompare(b.task.file.path));
+  const result=[];let group=[],ends=[],groupEnd=-1;
+  const flush=()=>{for(const event of group){event.columns=ends.length;result.push(event);}group=[];ends=[];groupEnd=-1;};
+  for(const event of timed){
+    if(group.length&&event.start>=groupEnd)flush();
+    let lane=ends.findIndex(end=>end<=event.start);if(lane<0)lane=ends.length;
+    event.lane=lane;event.displayDuration=Math.max(30,event.duration);ends[lane]=event.start+event.displayDuration;groupEnd=Math.max(groupEnd,ends[lane]);group.push(event);
+  }
+  flush();return result;
+}
+function calendarBounds(tasks,days){
+  let start=7*60,end=20*60;
+  for(const task of tasks){const minute=timeMinutes(task.meta.scheduledTime);if(!task.meta.archived&&days.includes(dateValue(task.meta.scheduled))&&minute!==null){start=Math.min(start,Math.floor(minute/60)*60);end=Math.max(end,Math.min(1440,Math.ceil((minute+durationMinutes(task.meta))/60)*60));}}
+  return {start,end};
+}
 function button(parent, text, action, cls='') { const b=parent.createEl('button',{text,cls}); b.addEventListener('click',action); return b; }
 function report(e) { console.error('TaskFlow',e); new Notice(`TaskFlow: ${e.message || e}`); }
 class TaskEditor extends Modal {
-  constructor(plugin,task,status='open',scheduled='',priority='normal'){super(plugin.app);this.plugin=plugin;this.task=task;this.initialStatus=status;this.initialScheduled=scheduled;this.initialPriority=priority;}
+  constructor(plugin,task,status='open',scheduled='',priority='normal',initialTime=''){super(plugin.app);this.plugin=plugin;this.task=task;this.initialStatus=status;this.initialScheduled=scheduled;this.initialPriority=priority;this.initialTime=initialTime;}
   onOpen(){
     const c=this.contentEl;c.addClass('tf-editor-modal');this.modalEl.addClass('tf-task-modal');
-    const data=this.task?structuredClone(this.task.meta):{taskflow:1,title:'',status:this.initialStatus,priority:this.initialPriority,tags:[],due:'',scheduled:this.initialScheduled,created:new Date().toISOString()};
+    const data=this.task?structuredClone(this.task.meta):{taskflow:1,title:'',status:this.initialStatus,priority:this.initialPriority,tags:[],due:'',scheduled:this.initialScheduled,scheduledTime:this.initialTime,created:new Date().toISOString()};
     const original=this.task?.body||'',parsed=editorSubtasks(original);let items=parsed.items.map(x=>({...x}));
     const header=c.createDiv({cls:'tf-editor-header'});header.createEl('h2',{text:this.task?'Aufgabe bearbeiten':'Neue Aufgabe'});header.createEl('p',{text:'Ein klarer nächster Schritt. Details und Teilaufgaben ergänzt du darunter.'});
     const form=c.createEl('form',{cls:'tf-task-form'});form.noValidate=true;
@@ -182,10 +205,10 @@ class TaskEditor extends Modal {
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
-  async onClose(){this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
+  async onClose(){this.calendarPointerCleanup?.();this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
   captureCards(){
     const cards=new Map();
     for(const el of this.contentEl.querySelectorAll('.tf-card'))cards.set(el.dataset.path,{rect:el.getBoundingClientRect(),status:el.dataset.status});
@@ -209,6 +232,7 @@ class TaskView extends ItemView {
   }
   render(){
     if(this.closed)return;
+    this.calendarPointerCleanup?.();
     const c=this.contentEl;
     // End an interrupted movement before measuring the stable board positions.
     for(const a of this.animations)a.cancel();this.animations.clear();
@@ -368,9 +392,9 @@ class TaskView extends ItemView {
     const day=validDay(this.plannerDate)?this.plannerDate:today();this.plannerDate=day;
     const plan=dayPlan(tasks,day),planner=c.createDiv({cls:'tf-planner'});
     const controls=planner.createDiv({cls:'tf-planner-controls'});
-    const previous=button(controls,'‹',()=>{this.plannerDate=shiftDay(day,-1);this.render();},'tf-planner-step');previous.setAttribute('aria-label','Vorheriger Tag');
+    const previous=button(controls,'‹',()=>{this.plannerDate=shiftDay(day,this.plannerMode==='calendar'&&this.calendarSpan==='week'?-7:-1);this.render();},'tf-planner-step');previous.setAttribute('aria-label',this.plannerMode==='calendar'&&this.calendarSpan==='week'?'Vorherige Woche':'Vorheriger Tag');
     const date=controls.createEl('input',{type:'date'});date.value=day;date.setAttribute('aria-label','Planungstag');date.dataset.tfFocus='planner-date';date.onchange=()=>{if(validDay(date.value)){this.plannerDate=date.value;this.render();}};
-    const next=button(controls,'›',()=>{this.plannerDate=shiftDay(day,1);this.render();},'tf-planner-step');next.setAttribute('aria-label','Nächster Tag');
+    const next=button(controls,'›',()=>{this.plannerDate=shiftDay(day,this.plannerMode==='calendar'&&this.calendarSpan==='week'?7:1);this.render();},'tf-planner-step');next.setAttribute('aria-label',this.plannerMode==='calendar'&&this.calendarSpan==='week'?'Nächste Woche':'Nächster Tag');
     button(controls,'Heute',()=>{this.plannerDate=today();this.render();},'tf-text-button');
     controls.createSpan({text:`${plan.planned.length} geplant · ${plan.done} erledigt · ${Math.floor(plan.minutes/60)} h ${plan.minutes%60} min geschätzt`,cls:'tf-planner-day-summary'});
     const week=planner.createDiv({cls:'tf-week-strip',attr:{'aria-label':'Wochenübersicht'}});
@@ -380,13 +404,14 @@ class TaskView extends ItemView {
       b.createSpan({text:new Date(key+'T12:00:00').toLocaleDateString('de-CH',{weekday:'short'}),cls:'tf-week-label'});b.createEl('strong',{text:key.slice(8,10)});b.createSpan({text:count+' Aufgaben',cls:'tf-week-count'});
     }
     const modes=planner.createDiv({cls:'tf-planner-modes',attr:{'aria-label':'Tagesansicht'}});
-    for(const [key,label]of Object.entries({agenda:'Tagesablauf',status:'Status',priority:'Prioritäten'})){
+    for(const [key,label]of Object.entries({agenda:'Tagesablauf',calendar:'Kalender',status:'Status',priority:'Prioritäten'})){
       const b=button(modes,label,()=>{this.plannerMode=key;this.render();},'tf-planner-mode'+(this.plannerMode===key?' is-active':''));b.setAttribute('aria-pressed',String(this.plannerMode===key));
     }
     if(plan.conflicts.size)planner.createDiv({text:`${plan.conflicts.size} aktive Aufgaben überschneiden sich zeitlich. Du kannst die Zeitblöcke über „Zeit & Planung“ anpassen.`,cls:'tf-planner-warning',attr:{role:'status'}});
     const workspace=planner.createDiv({cls:'tf-planner-layout'+(this.plannerMode!=='agenda'?' tf-planner-layout-board':'')});
     const content=workspace.createDiv({cls:'tf-planner-content'});
-    if(this.plannerMode!=='agenda'){
+    if(this.plannerMode==='calendar'){this.renderCalendar(content,tasks);}
+    else if(this.plannerMode!=='agenda'){
       this.renderBoard(content,plan.planned,this.plannerMode==='priority'?'priority':'status');
     }else{
       content.createEl('h2',{text:new Date(day+'T12:00:00').toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'}),cls:'tf-planner-heading'});
@@ -402,6 +427,7 @@ class TaskView extends ItemView {
     if(!plan.pool.length)pool.createDiv({text:'Keine weiteren aktiven Aufgaben in dieser Auswahl.',cls:'tf-planner-empty'});
     for(const task of plan.pool){
       const item=pool.createDiv({cls:'tf-pool-task tf-priority-'+(Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal')});
+      if(this.plannerMode==='calendar'){item.draggable=false;item.onpointerdown=e=>this.calendarPointerStart(e,item,task);}
       button(item,task.meta.title,()=>new TaskEditor(this.plugin,task).open(),'tf-title');
       const old=dateValue(task.meta.scheduled);item.createDiv({text:old?'Bisher geplant: '+old:'Noch nicht eingeplant',cls:'tf-pool-meta'});
       const due=duePresentation(task);item.createSpan({text:due.label,cls:'tf-due tf-due-'+due.kind});
@@ -409,6 +435,82 @@ class TaskView extends ItemView {
       add.setAttribute('aria-label',task.meta.title+' am '+day+' einplanen');
     }
     planner.createEl('p',{text:'Planungsdatum und Uhrzeit sind dein Arbeitsplan, die Fälligkeit ist die Deadline. Überschneidungen werden markiert; es werden keine Aufgaben automatisch archiviert.',cls:'tf-planner-note'});
+  }
+  calendarPointerStart(event,element,task){
+    if(event.button!==0||event.target.closest('.tf-calendar-check'))return;
+    const doc=element.ownerDocument,origin={x:event.clientX,y:event.clientY},pointerId=event.pointerId;
+    let moving=false;
+    const hitTarget=e=>doc.elementFromPoint(e.clientX,e.clientY)?.closest('.tf-calendar-day-column,.tf-calendar-flex-cell');
+    const cleanup=()=>{doc.removeEventListener('pointermove',move);doc.removeEventListener('pointerup',up);doc.removeEventListener('pointercancel',cancel);element.style.pointerEvents='';this.clearCalendarDrag();this.calendarPointerCleanup=null;};
+    const move=e=>{
+      if(e.pointerId!==pointerId)return;
+      if(!moving&&Math.hypot(e.clientX-origin.x,e.clientY-origin.y)<6)return;
+      if(!moving){moving=true;this.calendarDragPath=task.file.path;this.calendarDragOffset=timeMinutes(task.meta.scheduledTime)===null?0:Math.max(0,Math.min(durationMinutes(task.meta)-1,Math.round((origin.y-element.getBoundingClientRect().top)/CALENDAR_PIXELS_PER_MINUTE/15)*15));element.addClass('tf-calendar-dragging');element.style.pointerEvents='none';}
+      e.preventDefault();
+      for(const preview of this.contentEl.querySelectorAll('.tf-calendar-drop-preview'))preview.hidden=true;
+      for(const cell of this.contentEl.querySelectorAll('.tf-calendar-drop-active'))cell.removeClass('tf-calendar-drop-active');
+      const target=hitTarget(e);if(!target||!this.contentEl.contains(target))return;
+      if(target.classList.contains('tf-calendar-flex-cell'))target.addClass('tf-calendar-drop-active');
+      else{const minute=calendarDropMinute(e.clientY,target.getBoundingClientRect().top,Number(target.dataset.startMinute),this.calendarDragOffset),preview=target.querySelector('.tf-calendar-drop-preview');if(preview){preview.hidden=false;preview.setText(clockTime(Math.min(minute,1439)));preview.style.top=((minute-Number(target.dataset.startMinute))*CALENDAR_PIXELS_PER_MINUTE)+'px';}}
+    };
+    const up=e=>{
+      if(e.pointerId!==pointerId)return;
+      const target=moving?hitTarget(e):null,offset=this.calendarDragOffset||0;
+      if(moving){e.preventDefault();this.calendarIgnoreClickUntil=Date.now()+350;}
+      const day=target?.dataset.day,start=target?.classList.contains('tf-calendar-day-column')?calendarDropMinute(e.clientY,target.getBoundingClientRect().top,Number(target.dataset.startMinute),offset):null;
+      cleanup();if(moving&&target&&this.contentEl.contains(target)&&day)this.moveCalendarTask(task.file.path,day,start);
+    };
+    const cancel=()=>cleanup();
+    this.calendarPointerCleanup?.();this.calendarPointerCleanup=cleanup;
+    doc.addEventListener('pointermove',move,{passive:false});doc.addEventListener('pointerup',up);doc.addEventListener('pointercancel',cancel);
+  }
+  clearCalendarDrag(){
+    this.calendarDragPath=null;this.calendarDragOffset=0;
+    for(const el of this.contentEl.querySelectorAll('.tf-calendar-dragging,.tf-calendar-drop-active'))el.removeClass('tf-calendar-dragging','tf-calendar-drop-active');
+    for(const el of this.contentEl.querySelectorAll('.tf-calendar-drop-preview'))el.hidden=true;
+  }
+  async moveCalendarTask(path,day,start){
+    const task=this.plugin.tasks.find(t=>t.file.path===path);if(!task)return;
+    try{await this.plugin.change(task,meta=>calendarMove(meta,day,start));this.calendarMessage=task.meta.title+' → '+day+(start===null?' · flexibel':' · '+clockTime(start));const live=this.contentEl.querySelector('.tf-calendar-live');if(live)live.setText(this.calendarMessage);}
+    catch(e){report(e);}
+  }
+  calendarEvent(parent,task,compact=false){
+    const event=parent.createDiv({cls:'tf-calendar-event tf-priority-'+(Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal')+' tf-status-'+task.meta.status+(task.meta.status==='done'?' is-done':'')+(compact?' tf-calendar-flex-event':'')});
+    event.dataset.path=task.file.path;event.draggable=false;event.onpointerdown=e=>this.calendarPointerStart(e,event,task);
+    const done=button(event,task.meta.status==='done'?'✓':'○',e=>{e.stopPropagation();this.setStatus(task,task.meta.status==='done'?'open':'done');},'tf-calendar-check');done.setAttribute('aria-label',task.meta.title+(task.meta.status==='done'?' wieder öffnen':' erledigen'));
+    const edit=button(event,'',()=>{if(Date.now()<(this.calendarIgnoreClickUntil||0))return;new TaskEditor(this.plugin,task).open();},'tf-calendar-edit');
+    const start=timeMinutes(task.meta.scheduledTime);const time=start===null?'Flexibel':task.meta.scheduledTime+'–'+clockTime(start+durationMinutes(task.meta));
+    edit.setAttribute('aria-label',task.meta.title+' bearbeiten · '+dateValue(task.meta.scheduled)+' · '+time);edit.setAttribute('title',task.meta.title+' · '+time+' · '+STATES[task.meta.status]);
+    if(!compact)edit.createSpan({text:time,cls:'tf-calendar-event-time'});
+    edit.createSpan({text:task.meta.title,cls:'tf-calendar-event-title'});return event;
+  }
+  renderCalendar(c,tasks){
+    const days=this.calendarSpan==='day'?[this.plannerDate]:plannerWeek(this.plannerDate),bounds=calendarBounds(tasks,days),scale=CALENDAR_PIXELS_PER_MINUTE;
+    const calendar=c.createDiv({cls:'tf-calendar'});
+    const toolbar=calendar.createDiv({cls:'tf-calendar-toolbar'});toolbar.createEl('h2',{text:this.calendarSpan==='day'?'Tageskalender':'Wochenkalender',cls:'tf-planner-heading'});
+    const chooser=toolbar.createDiv({cls:'tf-calendar-span',attr:{'aria-label':'Kalenderzeitraum'}});
+    for(const [key,label]of Object.entries({week:'Woche',day:'Tag'})){const b=button(chooser,label,()=>{this.calendarSpan=key;this.render();},'tf-calendar-span-button'+(this.calendarSpan===key?' is-active':''));b.setAttribute('aria-pressed',String(this.calendarSpan===key));}
+    calendar.createEl('p',{text:'Freie Zeit anklicken: Aufgabe anlegen. Blöcke ziehen: Zeit oder Tag ändern. Titel anklicken: bearbeiten. Kreis anklicken: erledigen.',cls:'tf-calendar-help'});
+    const scroll=calendar.createDiv({cls:'tf-calendar-scroll',attr:{'aria-label':'Kalender mit Aufgabenblöcken'}});
+    const sheet=scroll.createDiv({cls:'tf-calendar-sheet'+(days.length===1?' tf-calendar-single':'')});sheet.style.setProperty('--tf-calendar-days',String(days.length));
+    const header=sheet.createDiv({cls:'tf-calendar-header'});header.createSpan({text:'Zeit',cls:'tf-calendar-corner'});
+    for(const day of days){const b=button(header,'',()=>{this.plannerDate=day;this.calendarSpan='day';this.render();},'tf-calendar-day-heading'+(day===today()?' is-today':'')+(day===this.plannerDate?' is-selected':''));b.createSpan({text:new Date(day+'T12:00:00').toLocaleDateString('de-CH',{weekday:'short'})});b.createEl('strong',{text:day.slice(8,10)+'.'+day.slice(5,7)+'.'});b.setAttribute('aria-label','Tageskalender für '+day+' öffnen');}
+    const flexible=sheet.createDiv({cls:'tf-calendar-flex-row'});flexible.createSpan({text:'Flexibel',cls:'tf-calendar-corner'});
+    for(const day of days){
+      const cell=flexible.createDiv({cls:'tf-calendar-flex-cell'});cell.dataset.day=day;
+      const list=tasks.filter(t=>!t.meta.archived&&dateValue(t.meta.scheduled)===day&&timeMinutes(t.meta.scheduledTime)===null);for(const task of list)this.calendarEvent(cell,task,true);
+      const add=button(cell,'+',()=>new TaskEditor(this.plugin,null,'open',day).open(),'tf-calendar-flex-add');add.setAttribute('aria-label','Flexible Aufgabe am '+day+' anlegen');
+    }
+    const body=sheet.createDiv({cls:'tf-calendar-body'}),axis=body.createDiv({cls:'tf-calendar-axis'});axis.style.height=((bounds.end-bounds.start)*scale)+'px';
+    for(let minute=bounds.start;minute<=bounds.end;minute+=60){axis.createSpan({text:clockTime(minute),cls:'tf-calendar-hour'}).style.top=((minute-bounds.start)*scale)+'px';}
+    for(const day of days){
+      const column=body.createDiv({cls:'tf-calendar-day-column'+(day===today()?' is-today':'')});column.dataset.day=day;column.dataset.startMinute=String(bounds.start);column.style.height=((bounds.end-bounds.start)*scale)+'px';
+      for(let minute=bounds.start;minute<bounds.end;minute+=30){const slot=button(column,'',()=>new TaskEditor(this.plugin,null,'open',day,'normal',clockTime(minute)).open(),'tf-calendar-slot');slot.style.top=((minute-bounds.start)*scale)+'px';slot.style.height=(30*scale)+'px';slot.setAttribute('aria-label','Aufgabe am '+day+' um '+clockTime(minute)+' anlegen');slot.setAttribute('title',clockTime(minute)+' · Aufgabe anlegen');}
+      for(const item of calendarEvents(tasks,day)){const event=this.calendarEvent(column,item.task);event.style.top=((item.start-bounds.start)*scale)+'px';event.style.height=(item.displayDuration*scale-3)+'px';event.style.left=`calc(${item.lane/item.columns*100}% + 3px)`;event.style.width=`calc(${100/item.columns}% - 6px)`;}
+      const preview=column.createDiv({cls:'tf-calendar-drop-preview'});preview.hidden=true;preview.setAttribute('aria-hidden','true');
+    }
+    calendar.createDiv({text:this.calendarMessage||'',cls:'tf-calendar-live',attr:{role:'status','aria-live':'polite'}});
+    calendar.createEl('p',{text:'Zeitblöcke basieren auf Planungsdatum, Startzeit und Dauer. Kleine Aufgaben werden für die Bedienbarkeit mindestens als halbstündiger Block dargestellt; die Beschriftung zeigt ihre tatsächliche Dauer. Flexible Aufgaben liegen oben. Fälligkeiten werden beim Verschieben nicht geändert.',cls:'tf-calendar-footnote'});
   }
   renderStats(c,tasks){
     const period=[7,14,30,90].includes(this.statsDays)?this.statsDays:14;
@@ -498,4 +600,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute};

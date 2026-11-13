@@ -4,6 +4,21 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-13
+
+### Added
+- Reiter „Kalender“ im Tagesplaner mit Wochen- und Tagesansicht.
+- Interaktive Todo-Blöcke: Titel zum Bearbeiten anklicken, Kreis zum Erledigen oder Wiederöffnen.
+- Freie halbstündige Kalenderfelder öffnen den Aufgabeneditor mit Datum und Uhrzeit.
+- Blöcke direkt auf eine andere Uhrzeit oder einen anderen Tag ziehen; Ablage wird auf 15 Minuten gerundet.
+- Flexible Aufgaben ohne Startzeit oberhalb des Zeitrasters; Ziehen zwischen flexiblem Bereich und Zeitraster möglich.
+- Überlappende Blöcke werden nebeneinander angeordnet und nicht übereinander verdeckt.
+- Kalendernavigation zwischen Wochen bzw. Tagen und erweiterter Zeitbereich für frühe/späte Aufgaben.
+
+### Changed
+- Kalender verwendet die vorhandenen Planungsfelder; Fälligkeit, Notizen, Teilaufgaben und Status bleiben beim Verschieben erhalten.
+- Keine externen Kalenderbibliotheken und keine Übertragung von Aufgaben.
+
 ## [0.5.1] - 2026-11-13
 
 ### Changed

@@ -146,3 +146,33 @@ test('inline note save rejects a concurrent note edit',()=>{
  const original='Alte Notiz\n- [ ] A\n',current='Andere Notiz\n- [x] A\n';
  assert.throws(()=>core.patchNoteBody(current,core.noteField(original).notes,'Mein Entwurf'),/zwischenzeitlich/);
 });
+test('calendar movement updates plan without modifying due date, notes or completion',()=>{
+ const meta={status:'done',due:'2026-12-01',completed:'2026-11-10T09:00:00Z',durationMinutes:45,custom:7};
+ core.calendarMove(meta,'2026-11-16',9*60+15);
+ assert.equal(meta.scheduled,'2026-11-16');assert.equal(meta.scheduledTime,'09:15');assert.equal(meta.due,'2026-12-01');assert.equal(meta.status,'done');assert.equal(meta.completed,'2026-11-10T09:00:00Z');assert.equal(meta.custom,7);
+ core.calendarMove(meta,'2026-11-17',null);assert.equal(meta.scheduled,'2026-11-17');assert.equal(meta.scheduledTime,undefined);assert.equal(meta.durationMinutes,45);
+});
+test('calendar rejects out-of-day and fractional drop targets before writing',()=>{
+ const meta={scheduled:'2026-11-13',scheduledTime:'09:00',durationMinutes:60,due:'2026-12-01'};const before=JSON.stringify(meta);
+ assert.throws(()=>core.calendarMove(meta,'2026-11-16',23*60+30),/passt nicht/);assert.equal(JSON.stringify(meta),before);
+ assert.throws(()=>core.calendarMove(meta,'2026-02-30',600),/Kalendertag/);assert.throws(()=>core.calendarMove(meta,'2026-11-16',90.5),/passt nicht/);
+});
+test('calendar lays overlapping blocks into reusable lanes and resets separate clusters',()=>{
+ const item=(id,start,duration)=>({file:{path:id},meta:{title:id,status:'open',scheduled:'2026-11-13',scheduledTime:start,durationMinutes:duration}});
+ const events=core.calendarEvents([item('a','09:00',60),item('b','09:30',60),item('c','10:00',30),item('d','12:00',30)],'2026-11-13');
+ assert.equal(events.length,4);assert.equal(events[0].columns,2);assert.equal(events[1].columns,2);assert.equal(events[2].lane,0);assert.equal(events[3].columns,1);
+});
+test('calendar excludes other days and archived tasks and keeps short blocks clickable',()=>{
+ const items=[{file:{path:'short'},meta:{scheduled:'2026-11-13',scheduledTime:'09:00',durationMinutes:5}},{file:{path:'archive'},meta:{archived:true,scheduled:'2026-11-13',scheduledTime:'09:00'}},{file:{path:'other'},meta:{scheduled:'2026-11-14',scheduledTime:'09:00'}},{file:{path:'flex'},meta:{scheduled:'2026-11-13'}}];
+ const events=core.calendarEvents(items,'2026-11-13');assert.equal(events.length,1);assert.equal(events[0].duration,5);assert.equal(events[0].displayDuration,30);
+});
+test('calendar bounds include early and late scheduled tasks with default workday range',()=>{
+ const days=['2026-11-13'];assert.equal(core.calendarBounds([],days).start,420);assert.equal(core.calendarBounds([],days).end,1200);
+ const tasks=[{meta:{scheduled:days[0],scheduledTime:'05:15',durationMinutes:30}},{meta:{scheduled:days[0],scheduledTime:'23:30',durationMinutes:30}}];
+ const bounds=core.calendarBounds(tasks,days);assert.equal(bounds.start,300);assert.equal(bounds.end,1440);
+});
+test('calendar pointer targets snap to fifteen minutes and respect grab offset',()=>{
+ assert.equal(core.calendarDropMinute(394,100,420),630);
+ assert.equal(core.calendarDropMinute(394,100,420,15),615);
+ assert.equal(core.calendarDropMinute(-100,100,0),0);
+});

@@ -52,6 +52,23 @@ Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezi
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
+## Interaktiver Kalender ab 0.6.0
+
+Unter **Tagesplaner → Kalender** findest du eine Wochenansicht mit Zeitraster. Mit **Tag** wechselst du zur Ansicht des gewählten Tages; ein Klick auf einen Tageskopf öffnet diesen Tag ebenfalls. Die Pfeile oben blättern im Wochenmodus um eine Woche, sonst um einen Tag.
+
+- **Freie Zeit anklicken:** Der Aufgabeneditor öffnet sich mit Planungsdatum und Startzeit des halbstündigen Felds. Titel ergänzen und speichern.
+- **Todo-Titel anklicken:** Die Aufgabe inklusive Notizen, Teilaufgaben und Planung bearbeiten.
+- **Kreis neben dem Todo:** Als erledigt markieren oder wieder öffnen. Erledigte Blöcke erscheinen gedämpft und durchgestrichen.
+- **Block ziehen:** Auf einen anderen Tag oder eine andere Uhrzeit legen. Die Startzeit wird auf 15 Minuten gerundet; die Dauer bleibt erhalten. Ungültige Zeitblöcke außerhalb eines Tages werden nicht gespeichert.
+- **Flexibel:** Aufgaben ohne Startzeit stehen oberhalb des Rasters. Sie können ins Zeitraster gezogen werden; Ziehen aus dem Raster in den flexiblen Bereich entfernt nur die Startzeit.
+- Auch Einträge unter **Aufgaben einplanen** können in den Kalender gezogen werden. Die gewählte Aufgabe wird umgeplant, nicht dupliziert.
+
+Überlappende Blöcke stehen nebeneinander. Sehr kurze Aufgaben bekommen für die Bedienbarkeit eine Mindesthöhe entsprechend 30 Minuten; ihre Beschriftung zeigt weiterhin die echte Uhrzeit und Dauer. Der Zeitbereich beginnt standardmäßig um 07:00 und endet um 20:00; frühere oder spätere bestehende Planungen erweitern ihn automatisch. Andere Zeiten können im Aufgabeneditor eingetragen werden. Auf kleinen Panels lässt sich die Wochenansicht horizontal scrollen; die Tagesansicht benötigt weniger Platz.
+
+Verschieben ändert nur `scheduled` und gegebenenfalls `scheduledTime`. Fälligkeit, Dauer, Notizen, Teilaufgaben und Abschlussdatum bleiben erhalten. Es ist keine Datenmigration erforderlich und es gibt keine Verbindung zu externen Kalendern. Ohne Ziehen lässt sich jede Planung über den Aufgabeneditor ändern.
+
+Anlegen, Erledigen, Uhrzeitwechsel und Verschieben zwischen Wochentagen wurden in einer lokalen Vorschau mit Beispieldaten und Zen-Theme bedient. Die Vorschau simuliert die Obsidian-Host-API; mobile Geräte wurden nicht separat getestet.
+
 ## Breitere graue Karten ab 0.5.1
 
 Die Karten nutzen neutrale, aus den Obsidian-Themefarben abgeleitete Grautöne. Tags und Bedienelemente auf den Karten erhalten hellere graue Akzente. Statuspunkt, Prioritätsrand und Fälligkeit bleiben farblich unterscheidbar; der Blatt-Hintergrund folgt weiterhin Obsidian.
