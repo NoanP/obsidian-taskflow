@@ -67,34 +67,112 @@ function summarize(tasks) {
 }
 function subtasks(body) { return [...body.matchAll(/^\s*[-*] \[([ xX])\] (.*)$/gm)]; }
 function toggleSubtask(body, index) { let n=0; return body.replace(/^(\s*[-*] \[)([ xX])(\] .*)$/gm,(all,a,b,c)=>n++===index ? a+(b===' '?'x':' ')+c:all); }
+// Keep original checkbox locations and formatting unless the note text is edited.
+function editorSubtasks(body){
+  const items=[];
+  let notes=body.replace(/^([ \t]*[-*] \[)([ xX])(\] )([^\r\n]*)(\r?)$/gm,(raw,prefix,mark,suffix,text,cr)=>{items.push({id:items.length,text,done:mark!==' ',prefix,mark,suffix,cr,raw});return '';});
+  notes=notes.replace(/^##[ \t]+Teilaufgaben[ \t]*\r?\n(?=[ \t\r\n]*$)/m,'');
+  return {notes,items};
+}
+function editorBody(original,notes,items){
+  const parsed=editorSubtasks(original),kept=new Map(items.filter(x=>x.id!==null).map(x=>[x.id,x]));
+  const line=item=>'- ['+(item.done?'x':' ')+'] '+item.text.trim();
+  let body,extra;
+  if(notes.replace(/\r\n/g,'\n')===parsed.notes.replace(/\r\n/g,'\n')){let index=0;body=original.replace(/^([ \t]*[-*] \[)([ xX])(\] )([^\r\n]*)(\r?)$/gm,(raw,prefix,mark,suffix,text,cr)=>{const item=kept.get(index++);if(!item)return '';if(item.text===text&&item.done===(mark!==' '))return raw;return prefix+(item.done?(mark==='X'?'X':'x'):' ')+suffix+item.text.trim()+cr;});extra=items.filter(x=>x.id===null);}
+  else{body=notes;extra=items;}
+  if(extra.length){body=body.trimEnd()+'\n\n'+(/^##[ \t]+Teilaufgaben[ \t]*$/m.test(body)?'':'## Teilaufgaben\n\n')+extra.map(line).join('\n')+'\n';}
+  return body;
+}
+function validDay(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const date=new Date(value+'T12:00:00');return !Number.isNaN(date.getTime())&&localDay(date)===value;
+}
+function shiftDay(value,offset){const date=new Date(value+'T12:00:00');date.setDate(date.getDate()+offset);return localDay(date);}
+function plannerWeek(value){const date=new Date(value+'T12:00:00'),monday=shiftDay(value,-((date.getDay()+6)%7));return Array.from({length:7},(_,i)=>shiftDay(monday,i));}
+function timeMinutes(value){if(typeof value!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(value))return null;return Number(value.slice(0,2))*60+Number(value.slice(3));}
+function durationMinutes(meta){const n=Number(meta.durationMinutes);return Number.isInteger(n)&&n>=5&&n<=720?n:30;}
+function clockTime(minutes){return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');}
+function validatePlanning(meta){
+  const day=dateValue(meta.scheduled);
+  if(meta.scheduled&&!validDay(day))throw new Error('Bitte ein gültiges Planungsdatum eingeben.');
+  if(meta.scheduledTime){const start=timeMinutes(meta.scheduledTime);if(!day||start===null)throw new Error('Eine Startzeit benötigt ein Planungsdatum und die Form HH:MM.');if(start+durationMinutes(meta)>1440)throw new Error('Der Zeitblock muss innerhalb eines Tages enden. Bitte Startzeit oder Dauer anpassen.');}
+  if(meta.durationMinutes!==undefined&&(!Number.isInteger(Number(meta.durationMinutes))||Number(meta.durationMinutes)<5||Number(meta.durationMinutes)>720))throw new Error('Die Dauer muss zwischen 5 und 720 ganzen Minuten liegen.');
+}
+function assignDay(meta,day){
+  if(day&&!validDay(day))throw new Error('Ungültiges Planungsdatum.');
+  if(day)meta.scheduled=day;else{delete meta.scheduled;delete meta.scheduledTime;}
+}
+function dayPlan(tasks,day){
+  const planned=tasks.filter(t=>!t.meta.archived&&dateValue(t.meta.scheduled)===day);
+  const timed=planned.filter(t=>timeMinutes(t.meta.scheduledTime)!==null).sort((a,b)=>timeMinutes(a.meta.scheduledTime)-timeMinutes(b.meta.scheduledTime)||a.meta.title.localeCompare(b.meta.title));
+  const flexible=planned.filter(t=>timeMinutes(t.meta.scheduledTime)===null);
+  const conflicts=new Set();
+  for(let i=0;i<timed.length;i++){if(timed[i].meta.status==='done')continue;const end=timeMinutes(timed[i].meta.scheduledTime)+durationMinutes(timed[i].meta);for(let j=i+1;j<timed.length&&timeMinutes(timed[j].meta.scheduledTime)<end;j++){if(timed[j].meta.status!=='done'){conflicts.add(timed[i].file.path);conflicts.add(timed[j].file.path);}}}
+  const pool=tasks.filter(t=>!t.meta.archived&&t.meta.status!=='done'&&dateValue(t.meta.scheduled)!==day).sort((a,b)=>(dateValue(a.meta.scheduled)||dateValue(a.meta.due)||'9999').localeCompare(dateValue(b.meta.scheduled)||dateValue(b.meta.due)||'9999'));
+  return {planned,timed,flexible,pool,conflicts,done:planned.filter(t=>t.meta.status==='done').length,minutes:planned.reduce((sum,t)=>sum+durationMinutes(t.meta),0)};
+}
 function button(parent, text, action, cls='') { const b=parent.createEl('button',{text,cls}); b.addEventListener('click',action); return b; }
 function report(e) { console.error('TaskFlow',e); new Notice(`TaskFlow: ${e.message || e}`); }
 class TaskEditor extends Modal {
-  constructor(plugin, task, status='open') { super(plugin.app); this.plugin=plugin; this.task=task; this.initialStatus=status; }
-  onOpen() {
-    const {contentEl:c}=this; c.addClass('tf-editor-modal'); c.createEl('h2',{text:this.task?'Aufgabe bearbeiten':'Neue Aufgabe'});
-    const data=this.task?structuredClone(this.task.meta):{taskflow:1,title:'',status:this.initialStatus,priority:'normal',tags:[],due:'',created:new Date().toISOString()};
-    let body=this.task?.body || '## Notizen\n\n\n## Teilaufgaben\n\n';
-    new Setting(c).setName('Titel').addText(x=>x.setValue(data.title||'').onChange(v=>data.title=v));
-    new Setting(c).setName('Status').addDropdown(x=>x.addOptions(STATES).setValue(data.status).onChange(v=>data.status=v));
-    new Setting(c).setName('Priorität').addDropdown(x=>x.addOptions({low:'Niedrig',normal:'Normal',high:'Hoch'}).setValue(data.priority||'normal').onChange(v=>data.priority=v));
-    new Setting(c).setName('Fällig am').addText(x=>{x.inputEl.type='date';x.setValue(dateValue(data.due)).onChange(v=>data.due=v);});
-    new Setting(c).setName('Tags').setDesc('Mit Komma trennen, z. B. arbeit, projekt/web').addText(x=>x.setValue((data.tags||[]).join(', ')).onChange(v=>data.tags=[...new Set(v.split(',').map(t=>t.trim().replace(/^#/, '')).filter(Boolean))]));
-    c.createEl('label',{text:'Notizen, [[Verknüpfungen]] und Teilaufgaben als Markdown'});
-    const area=c.createEl('textarea',{cls:'tf-editor'}); area.value=body; area.setAttribute('aria-label','Notizen und Teilaufgaben');
-    const row=c.createDiv({cls:'tf-actions'});
-    button(row,'Teilaufgabe hinzufügen',()=>{area.value=area.value.replace(/\s*$/,'')+'\n- [ ] Neue Teilaufgabe\n';area.focus();});
-    button(row,'Abbrechen',()=>this.close());
-    const save=button(row,'Speichern',async()=>{
-      if(!data.title.trim()) return new Notice('Bitte einen Titel eingeben.');
-      save.disabled=true;
-      try { data.title=data.title.trim(); await this.plugin.saveTask(this.task,data,area.value); this.close(); } catch(e){report(e);save.disabled=false;}
-    },'mod-cta');
+  constructor(plugin,task,status='open',scheduled='',priority='normal'){super(plugin.app);this.plugin=plugin;this.task=task;this.initialStatus=status;this.initialScheduled=scheduled;this.initialPriority=priority;}
+  onOpen(){
+    const c=this.contentEl;c.addClass('tf-editor-modal');this.modalEl.addClass('tf-task-modal');
+    const data=this.task?structuredClone(this.task.meta):{taskflow:1,title:'',status:this.initialStatus,priority:this.initialPriority,tags:[],due:'',scheduled:this.initialScheduled,created:new Date().toISOString()};
+    const original=this.task?.body||'',parsed=editorSubtasks(original);let items=parsed.items.map(x=>({...x}));
+    const header=c.createDiv({cls:'tf-editor-header'});header.createEl('h2',{text:this.task?'Aufgabe bearbeiten':'Neue Aufgabe'});header.createEl('p',{text:'Ein klarer nächster Schritt. Details und Teilaufgaben ergänzt du darunter.'});
+    const form=c.createEl('form',{cls:'tf-task-form'});form.noValidate=true;
+    const field=(parent,name,type,value,change,placeholder='')=>{
+      const label=parent.createEl('label',{cls:'tf-form-field'});label.createSpan({text:name});const input=label.createEl('input',{type,value:String(value??''),placeholder});input.setAttribute('aria-label',name);input.oninput=()=>change(input.value);return input;
+    };
+    const title=field(form,'Aufgabentitel','text',data.title,v=>data.title=v,'Was möchtest du erledigen?');title.addClass('tf-task-title-input');
+    const details=form.createDiv({cls:'tf-form-grid'});
+    const dropdown=(name,values,value,change)=>{const label=details.createEl('label',{cls:'tf-form-field'});label.createSpan({text:name});const select=label.createEl('select');select.setAttribute('aria-label',name);for(const [key,text]of Object.entries(values))select.createEl('option',{value:key,text});select.value=value;select.onchange=()=>change(select.value);};
+    dropdown('Status',STATES,data.status,v=>data.status=v);dropdown('Priorität',PRIORITIES,data.priority||'normal',v=>data.priority=v);
+    field(details,'Fällig am','date',dateValue(data.due),v=>data.due=v);
+    field(details,'Tags','text',(data.tags||[]).join(', '),v=>data.tags=[...new Set(v.split(',').map(t=>t.trim().replace(/^#/, '')).filter(Boolean))],'arbeit, privat, projekt');
+    const planning=form.createEl('details',{cls:'tf-form-planning'});planning.open=!!dateValue(data.scheduled);planning.createEl('summary',{text:'Tagesplanung · optional'});
+    planning.createEl('p',{text:'Plane einen Arbeitstag und bei Bedarf einen Zeitblock. Die Fälligkeit bleibt eine eigene Deadline.'});
+    const planFields=planning.createDiv({cls:'tf-planning-fields'});
+    field(planFields,'Geplant am','date',dateValue(data.scheduled),v=>{data.scheduled=v;if(!v){data.scheduledTime='';time.value='';}});
+    const time=field(planFields,'Startzeit','time',data.scheduledTime||'',v=>data.scheduledTime=v);
+    const duration=field(planFields,'Dauer in Minuten','number',durationMinutes(data),v=>data.durationMinutes=v===''?30:Number(v));duration.min='5';duration.max='720';duration.step='5';
+    const notesSection=form.createDiv({cls:'tf-form-section'});notesSection.createEl('h3',{text:'Notizen'});
+    const notes=notesSection.createEl('textarea',{cls:'tf-note-editor',placeholder:'Gedanken, Links oder weitere Details …'});notes.value=parsed.notes;notes.rows=5;notes.setAttribute('aria-label','Notizen');
+    const subSection=form.createDiv({cls:'tf-form-section'}),subHeader=subSection.createDiv({cls:'tf-subtask-editor-header'});subHeader.createEl('h3',{text:'Teilaufgaben'});const count=subHeader.createSpan({cls:'tf-muted'});
+    const rows=subSection.createDiv({cls:'tf-subtask-editor-rows'});
+    const addItem=()=>{items.push({id:null,text:'',done:false});renderRows(items.length-1);};
+    const add=button(subHeader,'+ Teilaufgabe',addItem,'tf-add-subtask');add.type='button';
+    function renderRows(focusIndex){
+      rows.empty();count.setText(items.filter(x=>x.done).length+'/'+items.length);
+      if(!items.length)rows.createDiv({text:'Zerlege die Aufgabe in kleine, konkrete Schritte.',cls:'tf-subtask-editor-empty'});
+      items.forEach((item,index)=>{
+        const row=rows.createDiv({cls:'tf-subtask-editor-row'}),check=row.createEl('input',{type:'checkbox'});check.checked=item.done;check.setAttribute('aria-label','Teilaufgabe '+(index+1)+' erledigt');check.onchange=()=>{item.done=check.checked;count.setText(items.filter(x=>x.done).length+'/'+items.length);};
+        const input=row.createEl('input',{type:'text',value:item.text,placeholder:'Nächster Schritt …'});input.setAttribute('aria-label','Teilaufgabe '+(index+1));input.oninput=()=>item.text=input.value;
+        input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();items.splice(index+1,0,{id:null,text:'',done:false});renderRows(index+1);}};
+        const remove=button(row,'×',()=>{items.splice(index,1);renderRows(Math.min(index,items.length-1));},'tf-remove-subtask');remove.type='button';remove.setAttribute('aria-label','Teilaufgabe '+(index+1)+' entfernen');
+        if(index===focusIndex)input.focus();
+      });
+    }
+    renderRows();
+    const error=form.createDiv({cls:'tf-form-error',attr:{role:'alert'}});error.hidden=true;
+    const footer=form.createDiv({cls:'tf-editor-footer'});const cancel=button(footer,'Abbrechen',()=>this.close(),'tf-editor-cancel');cancel.type='button';const save=footer.createEl('button',{text:this.task?'Änderungen speichern':'Aufgabe erstellen',type:'submit',cls:'tf-editor-save'});
+    form.onsubmit=async event=>{
+      event.preventDefault();error.hidden=true;
+      if(!data.title.trim()){error.setText('Bitte gib deiner Aufgabe einen Titel.');error.hidden=false;title.focus();return;}
+      const blank=items.findIndex(x=>!x.text.trim()||/[\r\n]/.test(x.text));
+      if(blank>=0){error.setText('Bitte fülle die leere Teilaufgabe aus oder entferne sie.');error.hidden=false;rows.querySelectorAll('input[type="text"]')[blank]?.focus();return;}
+      try{validatePlanning(data);}catch(e){error.setText(e.message);error.hidden=false;planning.open=true;return;}
+      save.disabled=true;cancel.disabled=true;
+      try{data.title=data.title.trim();await this.plugin.saveTask(this.task,data,editorBody(original,notes.value,items));this.close();}
+      catch(e){error.setText(e.message||String(e));error.hidden=false;save.disabled=false;cancel.disabled=false;}
+    };
+    form.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();form.requestSubmit();}};
+    title.focus();
   }
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
   async onClose(){this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
@@ -136,6 +214,7 @@ class TaskView extends ItemView {
     side.createDiv({text:'TaskFlow',cls:'tf-side-label'});
     const navigate=(mode,archive)=>{this.mode=mode;this.showArchive=archive;this.render();};
     button(side,'Board',()=>navigate('board',false),'tf-side-item'+(!this.showArchive&&this.mode==='board'?' is-active':''));
+    button(side,'Tagesplaner',()=>navigate('planner',false),'tf-side-item'+(!this.showArchive&&this.mode==='planner'?' is-active':''));
     button(side,'Statistik',()=>navigate('stats',false),'tf-side-item'+(!this.showArchive&&this.mode==='stats'?' is-active':''));
     button(side,'Archiv',()=>navigate('board',true),'tf-side-item'+(this.showArchive?' is-active':''));
     side.createDiv({text:'Tags',cls:'tf-side-label'});
@@ -146,10 +225,10 @@ class TaskView extends ItemView {
     side.createDiv({text:'Lokal im Vault',cls:'tf-side-footer'});
     const main=workspace.createDiv({cls:'tf-main'});
     const header=main.createDiv({cls:'tf-header'}),title=header.createDiv();
-    title.createEl('h1',{text:this.showArchive?(this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='stats'?'Analyse & Statistik':'Meine Aufgaben'});
+    title.createEl('h1',{text:this.showArchive?(this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':'Meine Aufgaben'});
     title.createEl('p',{text:new Date().toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'})+' · Mein Arbeitsbereich',cls:'tf-muted tf-subtitle'});
-    button(header,'+ Neue Aufgabe',()=>new TaskEditor(this.plugin).open(),'tf-primary');
-    if(this.mode!=='stats'){
+    button(header,this.mode==='planner'?'+ Tagesaufgabe':'+ Neue Aufgabe',()=>new TaskEditor(this.plugin,null,'open',this.mode==='planner'?this.plannerDate:'').open(),'tf-primary');
+    if(this.mode==='board'){
     const summary=main.createDiv({cls:'tf-summary'});
     for(const [key,label]of Object.entries({total:'gesamt',open:'offen',progress:'in Arbeit',delayed:'verzögert',done:'erledigt'})){
       const item=summary.createSpan();item.createEl('strong',{text:String(s[key])});item.appendText(' '+label);
@@ -161,7 +240,7 @@ class TaskView extends ItemView {
     focusBar.createSpan({text:s.overdue?`${s.overdue} überfällig`:'Keine überfälligen Aufgaben',cls:s.overdue?'tf-due tf-due-late':'tf-muted'});
     }
     const toolbar=main.createDiv({cls:'tf-toolbar'});
-    toolbar.createSpan({text:this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
+    toolbar.createSpan({text:this.mode==='planner'?'FOKUS FÜR DEN TAG · ÜBERBLICK FÜR DIE WOCHE':this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
     if(this.showArchive)button(toolbar,this.mode==='stats'?'Kanban':'Statistik',()=>{this.mode=this.mode==='stats'?'board':'stats';this.render();},'tf-text-button');
     const filters=toolbar.createDiv({cls:'tf-filters'});
     const search=filters.createEl('input',{type:'search',placeholder:'Aufgaben suchen …',cls:'tf-search'});search.value=this.query;search.dataset.tfFocus='search';search.setAttribute('aria-label','Aufgaben suchen');
@@ -182,19 +261,23 @@ class TaskView extends ItemView {
     c.empty();const q=this.query.toLocaleLowerCase();
     const tasks=all.filter(t=>(!this.tag||(t.meta.tags||[]).includes(this.tag))&&`${t.meta.title} ${t.body} ${(t.meta.tags||[]).join(' ')}`.toLocaleLowerCase().includes(q));
     if(this.mode==='stats'){this.renderStats(c,tasks);return;}
-    const board=c.createDiv({cls:'tf-board'});
-    for(const [status,label]of Object.entries(STATES)){
-      const col=board.createDiv({cls:'tf-column tf-status-'+status});col.dataset.status=status;
-      const list=tasks.filter(t=>t.meta.status===status).sort((a,b)=>(dateValue(a.meta.due)||'9999').localeCompare(dateValue(b.meta.due)||'9999'));
+    if(this.mode==='planner'){this.renderPlanner(c,tasks);return;}
+    this.renderBoard(c,tasks);
+  }
+  renderBoard(c,tasks,groupBy='status'){
+    const board=c.createDiv({cls:'tf-board'+(groupBy==='priority'?' tf-board-priority':'')});
+    for(const [status,label]of Object.entries(groupBy==='priority'?PRIORITIES:STATES)){
+      const col=board.createDiv({cls:'tf-column '+(groupBy==='priority'?'tf-priority-'+status:'tf-status-'+status)});col.dataset.status=status;
+      const list=tasks.filter(t=>(groupBy==='priority'?(Object.hasOwn(PRIORITIES,t.meta.priority)?t.meta.priority:'normal'):t.meta.status)===status).sort((a,b)=>(dateValue(a.meta.due)||'9999').localeCompare(dateValue(b.meta.due)||'9999'));
       const heading=col.createDiv({cls:'tf-column-heading'});heading.createSpan({cls:'tf-status-dot',attr:{'aria-hidden':'true'}});heading.createEl('h2',{text:label});heading.createSpan({text:String(list.length),cls:'tf-count'});
-      const add=button(heading,'+',()=>new TaskEditor(this.plugin,null,status).open(),'tf-column-add');add.setAttribute('aria-label','Aufgabe in '+label+' hinzufügen');
+      const add=button(heading,'+',()=>new TaskEditor(this.plugin,null,groupBy==='status'?status:'open',this.mode==='planner'?this.plannerDate:'',groupBy==='priority'?status:'normal').open(),'tf-column-add');add.setAttribute('aria-label','Aufgabe in '+label+' hinzufügen');
       const stack=col.createDiv({cls:'tf-card-stack'});
-      for(const task of list)this.card(stack,task);
+      for(const task of list){if(this.mode==='planner')this.plannerCard(stack,task);else this.card(stack,task);}
       if(!list.length)stack.createDiv({text:'Keine Aufgaben',cls:'tf-empty'});
       const drop=col.createDiv({text:'Hier ablegen',cls:'tf-drop-hint'});drop.setAttribute('aria-hidden','true');
       col.ondragover=e=>{if(!this.dragPath)return;e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';for(const other of board.children)other.removeClass('tf-drag-target');col.addClass('tf-drag-target');};
       col.ondragleave=e=>{if(!col.contains(e.relatedTarget))col.removeClass('tf-drag-target');};
-      col.ondrop=e=>{e.preventDefault();col.removeClass('tf-drag-target');const path=e.dataTransfer?.getData('text/taskflow');if(path!==this.dragPath)return;this.dragPath=null;const task=this.plugin.tasks.find(t=>t.file.path===path);if(task&&task.meta.status!==status)this.setStatus(task,status);};
+      col.ondrop=e=>{e.preventDefault();col.removeClass('tf-drag-target');const path=e.dataTransfer?.getData('text/taskflow');if(path!==this.dragPath)return;this.dragPath=null;const task=this.plugin.tasks.find(t=>t.file.path===path);if(task){if(groupBy==='priority'){if(task.meta.priority!==status)this.plugin.change(task,m=>m.priority=status).catch(report);}else if(task.meta.status!==status)this.setStatus(task,status);}};
     }
     const legend=c.createDiv({cls:'tf-legend'});
     legend.createSpan({text:'Kartenrand: Priorität'});
@@ -222,15 +305,75 @@ class TaskView extends ItemView {
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
     const subs=subtasks(t.body);
-    if(subs.length){const details=card.createEl('details',{cls:'tf-subtasks'});details.open=this.expandedTasks.has(t.file.path);details.createEl('summary',{text:`Teilaufgaben · ${subs.filter(x=>x[1]!==' ').length}/${subs.length}`});details.ontoggle=()=>{if(details.open)this.expandedTasks.add(t.file.path);else this.expandedTasks.delete(t.file.path);};subs.forEach((sub,index)=>{
-      const label=details.createEl('label',{cls:'tf-subtask'});const check=label.createEl('input',{type:'checkbox'});check.checked=sub[1]!==' ';label.createSpan({text:sub[2]});
-      check.onchange=async()=>{check.disabled=true;try{await this.plugin.change(t,()=>{},body=>toggleSubtask(body,index),t.raw);}catch(e){report(e);this.render();}};
-    });}
+    if(subs.length){
+      const panelId='tf-subtasks-'+crypto.randomUUID(),expanded=this.expandedTasks.has(t.file.path);
+      const toggle=button(card,(expanded?'▾':'▸')+` Teilaufgaben · ${subs.filter(x=>x[1]!==' ').length}/${subs.length}`,()=>{
+        const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));panel.hidden=!open;toggle.setText((open?'▾':'▸')+` Teilaufgaben · ${subs.filter(x=>x[1]!==' ').length}/${subs.length}`);if(open)this.expandedTasks.add(t.file.path);else this.expandedTasks.delete(t.file.path);
+      },'tf-subtasks-toggle');toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-controls',panelId);
+      const panel=card.createDiv({cls:'tf-subtasks-panel'});panel.id=panelId;panel.hidden=!expanded;
+      subs.forEach((sub,index)=>{const label=panel.createEl('label',{cls:'tf-subtask'}),check=label.createEl('input',{type:'checkbox'});check.checked=sub[1]!==' ';label.createSpan({text:sub[2]});check.onchange=async()=>{check.disabled=true;try{await this.plugin.change(t,()=>{},body=>toggleSubtask(body,index),t.raw);}catch(e){report(e);this.render();}};});
+    }
     const controls=card.createDiv({cls:'tf-card-actions'});const select=controls.createEl('select');select.setAttribute('aria-label','Status für '+t.meta.title);
     for(const [value,text]of Object.entries(STATES))select.createEl('option',{value,text});select.value=t.meta.status;
     select.onchange=()=>{if(this.pendingPath){select.value=t.meta.status;return;}select.disabled=true;this.setStatus(t,select.value);};
     button(controls,'Notiz',()=>this.app.workspace.getLeaf(false).openFile(t.file),'tf-text-button');
     button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>m.archived=!m.archived);}catch(e){report(e);}},'tf-text-button');
+    return card;
+  }
+  async planTask(task,day){
+    try{await this.plugin.change(task,meta=>{assignDay(meta,day);validatePlanning(meta);});}
+    catch(e){report(e);this.render();}
+  }
+  plannerCard(parent,task){
+    const card=this.card(parent,task),actions=card.createDiv({cls:'tf-planning-actions'});
+    button(actions,'Zeit & Planung',()=>new TaskEditor(this.plugin,task).open(),'tf-text-button');
+    button(actions,'Aus Tagesplan nehmen',()=>this.planTask(task,''),'tf-text-button');return card;
+  }
+  renderPlanner(c,tasks){
+    const day=validDay(this.plannerDate)?this.plannerDate:today();this.plannerDate=day;
+    const plan=dayPlan(tasks,day),planner=c.createDiv({cls:'tf-planner'});
+    const controls=planner.createDiv({cls:'tf-planner-controls'});
+    const previous=button(controls,'‹',()=>{this.plannerDate=shiftDay(day,-1);this.render();},'tf-planner-step');previous.setAttribute('aria-label','Vorheriger Tag');
+    const date=controls.createEl('input',{type:'date'});date.value=day;date.setAttribute('aria-label','Planungstag');date.dataset.tfFocus='planner-date';date.onchange=()=>{if(validDay(date.value)){this.plannerDate=date.value;this.render();}};
+    const next=button(controls,'›',()=>{this.plannerDate=shiftDay(day,1);this.render();},'tf-planner-step');next.setAttribute('aria-label','Nächster Tag');
+    button(controls,'Heute',()=>{this.plannerDate=today();this.render();},'tf-text-button');
+    controls.createSpan({text:`${plan.planned.length} geplant · ${plan.done} erledigt · ${Math.floor(plan.minutes/60)} h ${plan.minutes%60} min geschätzt`,cls:'tf-planner-day-summary'});
+    const week=planner.createDiv({cls:'tf-week-strip',attr:{'aria-label':'Wochenübersicht'}});
+    for(const key of plannerWeek(day)){
+      const count=tasks.filter(t=>!t.meta.archived&&dateValue(t.meta.scheduled)===key).length;
+      const b=button(week,'',()=>{this.plannerDate=key;this.render();},'tf-week-day'+(key===day?' is-selected':'')+(key===today()?' is-today':''));b.setAttribute('aria-pressed',String(key===day));b.setAttribute('aria-label',key+', '+count+' geplante Aufgaben');
+      b.createSpan({text:new Date(key+'T12:00:00').toLocaleDateString('de-CH',{weekday:'short'}),cls:'tf-week-label'});b.createEl('strong',{text:key.slice(8,10)});b.createSpan({text:count+' Aufgaben',cls:'tf-week-count'});
+    }
+    const modes=planner.createDiv({cls:'tf-planner-modes',attr:{'aria-label':'Tagesansicht'}});
+    for(const [key,label]of Object.entries({agenda:'Tagesablauf',status:'Status',priority:'Prioritäten'})){
+      const b=button(modes,label,()=>{this.plannerMode=key;this.render();},'tf-planner-mode'+(this.plannerMode===key?' is-active':''));b.setAttribute('aria-pressed',String(this.plannerMode===key));
+    }
+    if(plan.conflicts.size)planner.createDiv({text:`${plan.conflicts.size} aktive Aufgaben überschneiden sich zeitlich. Du kannst die Zeitblöcke über „Zeit & Planung“ anpassen.`,cls:'tf-planner-warning',attr:{role:'status'}});
+    const workspace=planner.createDiv({cls:'tf-planner-layout'+(this.plannerMode!=='agenda'?' tf-planner-layout-board':'')});
+    const content=workspace.createDiv({cls:'tf-planner-content'});
+    if(this.plannerMode!=='agenda'){
+      this.renderBoard(content,plan.planned,this.plannerMode==='priority'?'priority':'status');
+    }else{
+      content.createEl('h2',{text:new Date(day+'T12:00:00').toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'}),cls:'tf-planner-heading'});
+      if(!plan.planned.length)content.createDiv({text:'Dein Tag ist noch frei. Plane eine vorhandene Aufgabe ein oder lege eine Tagesaufgabe an.',cls:'tf-planner-empty'});
+      for(const task of plan.timed){
+        const row=content.createDiv({cls:'tf-agenda-row'+(plan.conflicts.has(task.file.path)?' tf-time-conflict':'')});
+        const time=row.createDiv({cls:'tf-agenda-time'});time.createEl('strong',{text:task.meta.scheduledTime});time.createSpan({text:clockTime(timeMinutes(task.meta.scheduledTime)+durationMinutes(task.meta))});
+        const card=this.plannerCard(row,task);if(plan.conflicts.has(task.file.path))card.createDiv({text:'Zeitüberschneidung',cls:'tf-conflict-label'});
+      }
+      if(plan.flexible.length){content.createEl('h3',{text:'Flexibel · ohne Uhrzeit',cls:'tf-planner-subheading'});const flexible=content.createDiv({cls:'tf-flexible-grid'});for(const task of plan.flexible)this.plannerCard(flexible,task);}
+    }
+    const pool=workspace.createEl('aside',{cls:'tf-planner-pool'});pool.createEl('h2',{text:'Aufgaben einplanen',cls:'tf-planner-heading'});pool.createEl('p',{text:'Vorhandene Aufgaben auf den gewählten Tag legen. Fälligkeiten bleiben erhalten.',cls:'tf-muted'});
+    if(!plan.pool.length)pool.createDiv({text:'Keine weiteren aktiven Aufgaben in dieser Auswahl.',cls:'tf-planner-empty'});
+    for(const task of plan.pool){
+      const item=pool.createDiv({cls:'tf-pool-task tf-priority-'+(Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal')});
+      button(item,task.meta.title,()=>new TaskEditor(this.plugin,task).open(),'tf-title');
+      const old=dateValue(task.meta.scheduled);item.createDiv({text:old?'Bisher geplant: '+old:'Noch nicht eingeplant',cls:'tf-pool-meta'});
+      const due=duePresentation(task);item.createSpan({text:due.label,cls:'tf-due tf-due-'+due.kind});
+      const add=button(item,old?'Auf diesen Tag verschieben':'Einplanen',async()=>{add.disabled=true;await this.planTask(task,day);if(add.isConnected)add.disabled=false;},'tf-text-button');
+      add.setAttribute('aria-label',task.meta.title+' am '+day+' einplanen');
+    }
+    planner.createEl('p',{text:'Planungsdatum und Uhrzeit sind dein Arbeitsplan, die Fälligkeit ist die Deadline. Überschneidungen werden markiert; es werden keine Aufgaben automatisch archiviert.',cls:'tf-planner-note'});
   }
   renderStats(c,tasks){
     const period=[7,14,30,90].includes(this.statsDays)?this.statsDays:14;
@@ -292,7 +435,7 @@ class TaskFlow extends Plugin {
   async onload(){
     this.settings=Object.assign({folder:'TaskFlow/Aufgaben'},await this.loadData());this.tasks=[];this.scanVersion=0;
     this.registerView(VIEW,leaf=>new TaskView(leaf,this));this.addRibbonIcon('kanban-square','TaskFlow öffnen',()=>this.open());
-    this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'new',name:'Neue Aufgabe',callback:()=>new TaskEditor(this).open()});
+    this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'planner',name:'Tagesplaner öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='planner';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'new',name:'Neue Aufgabe',callback:()=>new TaskEditor(this).open()});
     this.addSettingTab(new class extends PluginSettingTab{display(){this.containerEl.empty();this.containerEl.createEl('h2',{text:'TaskFlow'});this.containerEl.createEl('p',{text:'Aufgaben liegen als Markdown im Ordner '+this.plugin.settings.folder+'. Bestehende Aufgaben anderer Plugins werden nicht automatisch importiert.'});}}(this.app,this));
     const refresh=()=>{clearTimeout(this.timer);this.timer=setTimeout(()=>this.scan(),180);};
     for(const event of ['create','modify','delete','rename'])this.registerEvent(this.app.vault.on(event,refresh));
@@ -309,10 +452,11 @@ class TaskFlow extends Plugin {
     await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);const previous=meta.status;mutate(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }
   async saveTask(task,meta,body){
+    validatePlanning(meta);
     if(task){await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen; deine Eingabe bleibt hier erhalten.');this.stamp(meta,decode(raw).meta.status);return encode(meta,body);});}
     else{const folder=normalizePath(this.settings.folder);let current='';for(const part of folder.split('/')){current=current?current+'/'+part:part;if(!this.app.vault.getAbstractFileByPath(current))await this.app.vault.createFolder(current);}meta.id=crypto.randomUUID();this.stamp(meta,null);await this.app.vault.create(`${folder}/${meta.id}.md`,encode(meta,body));}
     await this.scan();
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan};

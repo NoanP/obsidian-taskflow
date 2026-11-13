@@ -4,6 +4,25 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+### Added
+- Neu gestalteter Aufgabeneditor mit klaren Bereichen für Titel, Details, optionale Tagesplanung, Notizen und Teilaufgaben.
+- Teilaufgaben als einzelne Eingabezeilen mit Checkbox, Entfernen-Button und „+ Teilaufgabe“. Enter fügt die nächste Zeile ein.
+- Sichtbarer Aufklapp-Button auf jeder Karte mit Teilaufgaben, Fortschrittsanzeige und zugänglichem Ein-/Ausklappzustand.
+- Tagesplaner mit Tagesauswahl, Wochenübersicht und drei Ansichten: Tagesablauf, Status und Prioritäten.
+- Optionales Planungsdatum, Startzeit und Dauer; Zeitüberschneidungen aktiver Aufgaben werden markiert.
+- Bestehende Aufgaben einplanen, auf einen anderen Tag verschieben oder aus dem Plan nehmen; die Deadline bleibt erhalten.
+- Befehl „Tagesplaner öffnen“ und direkte Erstellung einer Tagesaufgabe für den gewählten Tag.
+
+### Changed
+- Notizen und Teilaufgaben werden im Editor getrennt bearbeitet, bleiben aber gemeinsam in der Markdown-Datei gespeichert.
+- Vorhandene Checkbox-Positionen, Einrückungen und Zeilenumbrüche bleiben bei unveränderten Notizen erhalten.
+
+### Fixed
+- Leere Teilaufgaben und ungültige Zeitblöcke werden vor dem Speichern verständlich im Formular angezeigt.
+- Browser-Normalisierung von CRLF-Zeilenumbrüchen verschiebt bestehende Checklisten nicht.
+
 ## [0.3.0] - 2026-11-12
 
 ### Changed

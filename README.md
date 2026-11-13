@@ -15,8 +15,8 @@ Für Updates in BRAT die automatische Prüfung aktivieren oder **Check for updat
 ## Benutzung
 
 - **Neue Aufgabe:** Titel, Status, Tags mit Kommas, Fälligkeit und Priorität eintragen.
-- Notizen sind Markdown. Mit **Teilaufgabe hinzufügen** eine Checkbox ergänzen; alternativ `- [ ] Text` schreiben.
-- Karten durch Ziehen oder mit der Statusauswahl verschieben. Kartentitel öffnet den Editor, **Notiz öffnen** das Markdown-Dokument mit Obsidian-Vorschau und Wiki-Links.
+- Notizen sind Markdown. Mit **+ Teilaufgabe** eine eigene Eingabezeile ergänzen; Enter fügt die nächste Zeile hinzu. Alternativ sind Markdown-Checkboxen `- [ ] Text` in der Datei weiterhin möglich.
+- Karten durch Ziehen oder mit der Statusauswahl verschieben. Kartentitel öffnet den neuen Editor. **Teilaufgaben · x/y** klappt die Checkliste direkt auf der Karte auf und zu; **Notiz öffnen** das Markdown-Dokument mit Obsidian-Vorschau und Wiki-Links.
 - **Verzögert** setzt du selbst, z. B. bei einer Blockade. **Überfällig** bedeutet: Fälligkeit vor dem heutigen lokalen Datum und noch nicht erledigt. Das ist eine zusätzliche Markierung und verschiebt keine Karten.
 - Suche durchsucht Titel, Notiz und Tags. Tagfilter und Suche gelten auch für die Statistik. Die Zahlen oben zeigen alle aktiven bzw. archivierten Aufgaben.
 - Statistik zeigt den aktuellen Stand und Aufgaben, die in den letzten 14 Tagen erledigt wurden. Wieder geöffnete Aufgaben verlieren das Abschlussdatum; erneutes Erledigen setzt es neu. Es ist keine Ereignishistorie aller Statuswechsel.
@@ -51,6 +51,27 @@ Die neue Statistik zeigt:
 Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezieht sich auf den **Abschlussverlauf** und die Kennzahl „Erledigt im Zeitraum“; Status, Prioritäten und Fälligkeiten zeigen den aktuellen Stand. Erledigte Aufgaben ohne gültiges Abschlussdatum werden im Status mitgezählt, aber nicht zeitlich zugeordnet. Es wird weiterhin nur das letzte Abschlussdatum ausgewertet, keine vollständige Ereignishistorie.
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
+
+## Aufgabeneditor und Teilaufgaben ab 0.4.0
+
+Der Editor trennt Titel, Status, Priorität, Fälligkeit, Tags, optionale Tagesplanung, Notizen und Teilaufgaben. Teilaufgaben brauchen keinen Markdown-Code: **+ Teilaufgabe** fügt eine Zeile hinzu, Enter die nächste. Jede Zeile hat Checkbox und Entfernen-Button. Leere Zeilen müssen vor dem Speichern ausgefüllt oder entfernt werden. Mit Cmd/Ctrl+Enter wird gespeichert.
+
+Auf der Karte zeigt ein eigener Button **▸ Teilaufgaben · 1/3** den Fortschritt. Ein Klick blendet die Checkliste ein; ein weiterer aus. Der aufgeklappte Zustand bleibt bei Aktualisierungen derselben Ansicht erhalten. Die Checkboxen lassen sich direkt abhaken. Alle Teilaufgaben bleiben im Markdown-Text der Aufgabe gespeichert. Bei Änderungen ausschließlich an Teilaufgaben bleiben Position, Einrückung und Zeilenumbrüche vorhandener Checklisten erhalten. Wenn die Notizen selbst geändert werden, wird die separat bearbeitete Checkliste unterhalb der neuen Notizen zusammengeführt.
+
+## Tagesplaner ab 0.4.0
+
+Über die Seitenleiste **Tagesplaner** oder die Befehlspalette **TaskFlow Kanban: Tagesplaner öffnen** aufrufen.
+
+- Oben den Planungstag auswählen oder mit Heute und den Pfeilen navigieren. Die Wochenübersicht zeigt Montag bis Sonntag mit der Anzahl eingeplanter Aufgaben. Suche und Tagfilter gelten auch hier.
+- **+ Tagesaufgabe** öffnet den Editor mit dem ausgewählten Planungsdatum. Unter „Tagesplanung · optional“ können Startzeit und geschätzte Dauer ergänzt werden.
+- **Aufgaben einplanen** zeigt weitere aktive Aufgaben. Einplanen ordnet sie dem ausgewählten Tag zu. Eine bereits an einem anderen Tag geplante Aufgabe wird auf den gewählten Tag verschoben, einschließlich einer vorhandenen Uhrzeit.
+- **Tagesablauf** sortiert Zeitblöcke nach Startzeit und zeigt flexible Aufgaben ohne Uhrzeit separat. **Status** und **Prioritäten** gruppieren die Aufgaben des ausgewählten Tages als Kanban. Bestehende Statusauswahl und Drag & Drop bleiben nutzbar; in der Prioritätsansicht ändert Drag & Drop die Priorität.
+- **Zeit & Planung** öffnet die Aufgabe zum Bearbeiten. **Aus Tagesplan nehmen** entfernt Planungsdatum und Uhrzeit, aber weder die Aufgabe noch ihre Deadline.
+- Zeitüberschneidungen aktiver Aufgaben werden markiert. Zeitblöcke müssen innerhalb eines Tages liegen; gültige Dauern sind 5–720 Minuten. Ohne hinterlegte Dauer werden 30 Minuten geschätzt.
+
+Planung und Deadline sind getrennt: `scheduled` ist das lokale Planungsdatum (YYYY-MM-DD), `scheduledTime` die optionale Startzeit (HH:MM), `durationMinutes` die geschätzte Dauer. `due` bleibt die Fälligkeit. Die Felder sind optional; vorhandene Aufgaben bleiben ohne Migration nutzbar. Es gibt keine automatische Archivierung, keine Erinnerungsbenachrichtigungen, keine Vorlagenverwaltung und keine Kalender-Synchronisation in dieser Version.
+
+Editor, Teilaufgaben und Tagesplaner wurden mit Beispieldaten in einer lokalen Vorschau einschließlich Zen-Theme bedient und geprüft. Die Vorschau simuliert die Obsidian-Host-API; den nativen Abschlusstest nach dem BRAT-Update bitte im Vault durchführen.
 
 ## Obsidian-Integration und Daten
 
