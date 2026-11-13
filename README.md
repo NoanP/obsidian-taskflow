@@ -2,6 +2,17 @@
 
 Ein lokales Aufgabenboard mit Dashboard, Statistik, Tags, Fälligkeit, Priorität, Notizen und Teilaufgaben. Oberfläche auf Deutsch. Aufgaben sind normale Markdown-Dateien in `TaskFlow/Aufgaben`. Keine Anmeldung, kein eigener Server, keine Telemetrie.
 
+## Grauer Look und Systemprüfung ab 0.9.0
+
+Die Oberfläche verwendet das Obsidian-Blatt als Hintergrund und neutrale graue Bedienelemente. Die frühere Blau-/Apricot-Akzentpalette entfällt. Farbe hat eine feste Bedeutung:
+
+- **Status:** Offen blau, In Arbeit ocker, Verzögert violett, Erledigt grün. Beschriftete Kartenlabels und Spaltenlinien tragen dieselben Farben.
+- **Priorität:** Hoch rot, Normal braun/ocker, Niedrig petrol. Ein breiter Kartenrand und ein beschriftetes Prioritätslabel machen sie sichtbar.
+- **Kalender:** Oberer Rand und Erledigen-Button zeigen den Status; linker Rand die Priorität. Hinweise nennen Status und Priorität zusätzlich als Text.
+- Fälligkeiten, Auswahlzustände, Buttons, Suchfelder und allgemeine Diagramme bleiben grau. Status- und Prioritätsdiagramme verwenden ihre entsprechenden Bedeutungsfarben.
+
+Die Prüfung umfasst Speicherung und Konfliktbehandlung, Notizen und Teilaufgaben, Kalender und Serienerzeugung, Statistik, Aufgabendatenvalidierung und Plugin-Lebenszyklus. 48 automatisierte Prüfungen sichern die untersuchten Fälle ab. Die überarbeitete Oberfläche wurde in einer lokalen Vorschau mit Beispieldaten und simuliertem Obsidian-Host im hellen/dunklen Theme bedient; das ersetzt keinen vollständigen Test auf allen Obsidian-Themes und mobilen Geräten. Es gibt weiterhin keine externen Laufzeitbibliotheken. Die Bereinigung betrifft TaskFlow; andere Vault-Plugins und Nutzerdaten werden nicht entfernt.
+
 ## Installation über BRAT
 
 1. In deinem Vault unter **Einstellungen → Community Plugins** BRAT installieren und aktivieren.

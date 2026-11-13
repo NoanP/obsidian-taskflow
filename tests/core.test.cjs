@@ -24,7 +24,7 @@ test('status completion timestamps reset on reopening',()=>{
 });
 test('concurrent note edits reject stale editor save',async()=>{
  const p=new Plugin();const raw=core.encode({taskflow:1,title:'Changed',status:'open'},'new notes');p.app={vault:{process:async(file,fn)=>fn(raw)}};
- await assert.rejects(()=>p.saveTask({file:{},raw:'stale'}, {title:'old'},'old notes'),/zwischenzeitlich/);
+ await assert.rejects(()=>p.saveTask({file:{},raw:'stale'}, {title:'old',status:'open'},'old notes'),/zwischenzeitlich/);
 });
 test('status mutation preserves latest body and metadata',async()=>{
  const p=new Plugin();let raw=core.encode({taskflow:1,title:'Task',status:'open',custom:42},'latest notes');p.app={vault:{process:async(file,fn)=>{raw=fn(raw)}}};p.scan=async()=>{};
@@ -236,4 +236,31 @@ test('scan creates dated calendar occurrences and refreshes without duplicates',
  files.set('Tasks/source.md',core.encode({taskflow:1,id:'source',title:'Meeting',status:'open',scheduled:now,recurrence:{frequency:'weekly',interval:1,start:now,time:'09:00',until:core.shiftDay(now,14)}},'Notes'));
  p.app={vault:{getMarkdownFiles:()=>[...files.keys()].map(path=>({path})),read:async file=>files.get(file.path),getAbstractFileByPath:path=>files.has(path),create:async(path,raw)=>files.set(path,raw)},workspace:{getLeavesOfType:()=>[{view:{render:()=>renders++}}]}};
  await p.scan();assert.equal(p.tasks.length,3);assert.equal(core.calendarEvents(core.calendarTasks(p.tasks),core.shiftDay(now,7)).length,1);assert.equal(renders,1);await p.scan();assert.equal(files.size,3);assert.equal(renders,1);
+});
+test('task editing and recurrence leave fenced Markdown examples untouched',()=>{
+ const body='Notes\r\n```md\r\n- [x] Example\r\n```\r\n~~~\r\n+ [ ] Another example\r\n~~~\r\n+ [X] Actual task\r\n';
+ assert.equal(core.subtasks(body).length,1);assert.equal(core.subtasks(body)[0][2],'Actual task');assert.equal(core.toggleSubtask(body,0),body.replace('+ [X] Actual task','+ [ ] Actual task'));
+ const parsed=core.editorSubtasks(body);assert.equal(parsed.items.length,1);assert.equal(core.editorBody(body,parsed.notes,parsed.items),body);
+ parsed.items[0].text='Changed';assert.equal(core.editorBody(body,parsed.notes,parsed.items),body.replace('Actual task','Changed'));
+ const child=core.recurrenceOccurrence({meta:{id:'series',recurrence:{time:'09:00'}},body},'2026-11-20');assert.equal(child.body,body.replace('+ [X] Actual task','+ [ ] Actual task'));
+});
+test('invalid status, empty title and invalid due dates are rejected before saving',async()=>{
+ for(const status of ['constructor','toString','__proto__','unknown'])assert.throws(()=>core.validateTaskFields({status,title:'Test'}));
+ assert.throws(()=>core.validateTaskFields({status:'open',title:'  '}));assert.throws(()=>core.validateTaskFields({status:'open',title:'Test',tags:[1]}));
+ assert.throws(()=>core.validatePlanning({due:'2026-02-30'}));assert.equal(core.dateValue(new Date('bad')), '');
+ const p=new Plugin();let writes=0;p.app={vault:{process:async()=>{writes++}}};await assert.rejects(()=>p.saveTask({}, {title:'Test',status:'constructor'},'Notes'));assert.equal(writes,0);
+});
+test('calendar range includes display height for a five-minute late appointment',()=>{
+ const bounds=core.calendarBounds([{meta:{scheduled:'2026-11-13',scheduledTime:'20:55',durationMinutes:5}}],['2026-11-13']);assert.equal(bounds.end,1320);
+});
+test('bounded parallel scans preserve all tasks and ignore prototype status names',async()=>{
+ const p=new Plugin();p.settings={folder:'Tasks'};p.scanVersion=0;let active=0,peak=0,renders=0;
+ const files=Array.from({length:40},(_,i)=>({path:'Tasks/'+i+'.md'}));
+ p.app={vault:{getMarkdownFiles:()=>files,read:async file=>{active++;peak=Math.max(peak,active);await Promise.resolve();active--;return core.encode({taskflow:1,title:file.path,status:'open'},'Notes')}},workspace:{getLeavesOfType:()=>[{view:{render:()=>renders++}}]}};
+ await p.scan();assert.equal(p.tasks.length,40);assert.ok(peak>1&&peak<=16);assert.equal(renders,1);
+ p.stopped=true;await p.scan();assert.equal(renders,1);
+});
+test('unloaded plugin cannot create additional recurring tasks',async()=>{
+ const p=new Plugin();p.stopped=true;p.settings={folder:'Tasks'};let writes=0;p.app={vault:{create:async()=>writes++,getAbstractFileByPath:()=>false}};
+ assert.equal(await p.ensureRecurrences([{file:{path:'Tasks/source.md'},meta:{id:'source',recurrence:{frequency:'daily',interval:1,start:'2026-11-13'}},body:''}],'2026-11-13'),0);assert.equal(writes,0);
 });

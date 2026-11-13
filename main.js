@@ -1,5 +1,5 @@
 /* TaskFlow — editable source and release entry point. No build step required. */
-const {Plugin, ItemView, Modal, Setting, Notice, PluginSettingTab, parseYaml, stringifyYaml, normalizePath} = require('obsidian');
+const {Plugin, ItemView, Modal, Notice, PluginSettingTab, parseYaml, stringifyYaml, normalizePath} = require('obsidian');
 const VIEW = 'taskflow-board';
 const STATES = {open:'Offen', progress:'In Arbeit', delayed:'Verzögert', done:'Erledigt'};
 const PRIORITIES={high:'Hoch',normal:'Normal',low:'Niedrig'};
@@ -50,7 +50,7 @@ function svgElement(parent,name,attributes={}){
   const el=parent.ownerDocument.createElementNS('http://www.w3.org/2000/svg',name);
   for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));parent.appendChild(el);return el;
 }
-function dateValue(v) { return v instanceof Date ? v.toISOString().slice(0,10) : typeof v === 'string' ? v.slice(0,10) : ''; }
+function dateValue(v) { return v instanceof Date ? (Number.isNaN(v.getTime())?'':v.toISOString().slice(0,10)) : typeof v === 'string' ? v.slice(0,10) : ''; }
 function decode(raw) {
   const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!m) throw new Error('TaskFlow-Metadaten fehlen.');
@@ -62,15 +62,26 @@ const encode = (meta, body) => `---\n${stringifyYaml(meta).trimEnd()}\n---\n${bo
 function overdue(t) { return t.meta.status !== 'done' && !!dateValue(t.meta.due) && dateValue(t.meta.due) < today(); }
 function summarize(tasks) {
   const s = {total:tasks.length, open:0, progress:0, delayed:0, done:0, overdue:0};
-  for (const t of tasks) { s[t.meta.status in STATES ? t.meta.status : 'open']++; if(overdue(t)) s.overdue++; }
+  for (const t of tasks) { s[Object.hasOwn(STATES,t.meta.status) ? t.meta.status : 'open']++; if(overdue(t)) s.overdue++; }
   return s;
 }
-function subtasks(body) { return [...body.matchAll(/^\s*[-*] \[([ xX])\] (.*)$/gm)]; }
-function toggleSubtask(body, index) { let n=0; return body.replace(/^(\s*[-*] \[)([ xX])(\] .*)$/gm,(all,a,b,c)=>n++===index ? a+(b===' '?'x':' ')+c:all); }
+// Only actual Markdown task lines are editable; fenced examples remain literal text.
+function mapTaskLines(body,transform){
+  let fence=null;
+  return body.split(/(\r?\n)/).map((line,index)=>{
+    if(index%2)return line;
+    const mark=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if(fence){if(mark&&mark[1][0]===fence.char&&mark[1].length>=fence.length&&!mark[2].trim())fence=null;return line;}
+    if(mark){fence={char:mark[1][0],length:mark[1].length};return line;}
+    return transform(line);
+  }).join('');
+}
+function subtasks(body){const result=[];mapTaskLines(body,line=>{const match=line.match(/^[ \t]*[-*+] \[([ xX])\] (.*)$/);if(match)result.push(match);return line;});return result;}
+function toggleSubtask(body,index){let n=0;return mapTaskLines(body,line=>line.replace(/^([ \t]*[-*+] \[)([ xX])(\] .*)$/,(all,a,b,c)=>n++===index?a+(b===' '?'x':' ')+c:all));}
 // Keep original checkbox locations and formatting unless the note text is edited.
 function editorSubtasks(body){
   const items=[];
-  let notes=body.replace(/^([ \t]*[-*] \[)([ xX])(\] )([^\r\n]*)(\r?)$/gm,(raw,prefix,mark,suffix,text,cr)=>{items.push({id:items.length,text,done:mark!==' ',prefix,mark,suffix,cr,raw});return '';});
+  let notes=mapTaskLines(body,line=>line.replace(/^([ \t]*[-*+] \[)([ xX])(\] )([^\r\n]*)(\r?)$/,(raw,prefix,mark,suffix,text,cr)=>{items.push({id:items.length,text,done:mark!==' ',prefix,mark,suffix,cr,raw});return '';}));
   notes=notes.replace(/^##[ \t]+Teilaufgaben[ \t]*\r?\n(?=[ \t\r\n]*$)/m,'');
   return {notes,items};
 }
@@ -78,7 +89,7 @@ function editorBody(original,notes,items){
   const parsed=editorSubtasks(original),kept=new Map(items.filter(x=>x.id!==null).map(x=>[x.id,x]));
   const line=item=>'- ['+(item.done?'x':' ')+'] '+item.text.trim();
   let body,extra;
-  if(notes.replace(/\r\n/g,'\n')===parsed.notes.replace(/\r\n/g,'\n')){let index=0;body=original.replace(/^([ \t]*[-*] \[)([ xX])(\] )([^\r\n]*)(\r?)$/gm,(raw,prefix,mark,suffix,text,cr)=>{const item=kept.get(index++);if(!item)return '';if(item.text===text&&item.done===(mark!==' '))return raw;return prefix+(item.done?(mark==='X'?'X':'x'):' ')+suffix+item.text.trim()+cr;});extra=items.filter(x=>x.id===null);}
+  if(notes.replace(/\r\n/g,'\n')===parsed.notes.replace(/\r\n/g,'\n')){let index=0;body=mapTaskLines(original,line=>line.replace(/^([ \t]*[-*+] \[)([ xX])(\] )([^\r\n]*)(\r?)$/,(raw,prefix,mark,suffix,text,cr)=>{const item=kept.get(index++);if(!item)return '';if(item.text===text&&item.done===(mark!==' '))return raw;return prefix+(item.done?(mark==='X'?'X':'x'):' ')+suffix+item.text.trim()+cr;}));extra=items.filter(x=>x.id===null);}
   else{body=notes;extra=items;}
   if(extra.length){body=body.trimEnd()+'\n\n'+(/^##[ \t]+Teilaufgaben[ \t]*$/m.test(body)?'':'## Teilaufgaben\n\n')+extra.map(line).join('\n')+'\n';}
   return body;
@@ -103,6 +114,7 @@ function timeMinutes(value){if(typeof value!=='string'||!/^([01]\d|2[0-3]):[0-5]
 function durationMinutes(meta){const n=Number(meta.durationMinutes);return Number.isInteger(n)&&n>=5&&n<=720?n:30;}
 function clockTime(minutes){return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');}
 function validatePlanning(meta){
+  if(meta.due&&!validDay(dateValue(meta.due)))throw new Error('Bitte ein gültiges Fälligkeitsdatum eingeben.');
   const day=dateValue(meta.scheduled);
   if(meta.scheduled&&!validDay(day))throw new Error('Bitte ein gültiges Planungsdatum eingeben.');
   if(meta.scheduledTime){const start=timeMinutes(meta.scheduledTime);if(!day||start===null)throw new Error('Eine Startzeit benötigt ein Planungsdatum und die Form HH:MM.');if(start+durationMinutes(meta)>1440)throw new Error('Der Zeitblock muss innerhalb eines Tages enden. Bitte Startzeit oder Dauer anpassen.');}
@@ -152,7 +164,7 @@ function calendarEvents(tasks,day){
 }
 function calendarBounds(tasks,days){
   let start=7*60,end=20*60;
-  for(const task of tasks){const minute=timeMinutes(task.meta.scheduledTime);if(!task.meta.archived&&days.includes(dateValue(task.meta.scheduled))&&minute!==null){start=Math.min(start,Math.floor(minute/60)*60);end=Math.max(end,Math.min(1440,Math.ceil((minute+durationMinutes(task.meta))/60)*60));}}
+  for(const task of tasks){const minute=timeMinutes(task.meta.scheduledTime);if(!task.meta.archived&&days.includes(dateValue(task.meta.scheduled))&&minute!==null){start=Math.min(start,Math.floor(minute/60)*60);end=Math.max(end,Math.min(1440,Math.ceil((minute+Math.max(30,durationMinutes(task.meta)))/60)*60));}}
   return {start,end};
 }
 const RECURRENCES={daily:'Täglich',weekly:'Wöchentlich',monthly:'Monatlich'};
@@ -185,7 +197,7 @@ function recurrenceOccurrence(source,day){
   meta.status='open';meta.due=day;meta.scheduled=day;meta.durationMinutes=rule.durationMinutes||30;
   if(rule.time)meta.scheduledTime=rule.time;else delete meta.scheduledTime;
   meta.created=new Date().toISOString();
-  const body=source.body.replace(/^(\s*[-*+] \[)[xX](\] )/gm,'$1 $2');
+  const body=mapTaskLines(source.body,line=>line.replace(/^([ \t]*[-*+] \[)[xX](\] )/,'$1 $2'));
   return {meta,body};
 }
 function recurrenceLabel(meta){
@@ -193,6 +205,9 @@ function recurrenceLabel(meta){
   return meta.recurrenceSeries?'↻ Serientermin':'';
 }
 function button(parent, text, action, cls='') { const b=parent.createEl('button',{text,cls}); b.addEventListener('click',action); return b; }
+function validateTaskFields(meta){
+  if(!Object.hasOwn(STATES,meta.status)||typeof meta.title!=='string'||!meta.title.trim()||meta.tags!==undefined&&(!Array.isArray(meta.tags)||meta.tags.some(t=>typeof t!=='string')))throw new Error('Ungültige Aufgabenfelder. Bitte Titel, Status und Tags prüfen.');
+}
 function report(e) { console.error('TaskFlow',e); new Notice(`TaskFlow: ${e.message || e}`); }
 class TaskEditor extends Modal {
   constructor(plugin,task,status='open',scheduled='',priority='normal',initialTime=''){super(plugin.app);this.plugin=plugin;this.task=task;this.initialStatus=status;this.initialScheduled=scheduled;this.initialPriority=priority;this.initialTime=initialTime;}
@@ -360,7 +375,7 @@ class TaskView extends ItemView {
     this.animateMoves(previous);
   }
   renderResults(c,all){
-    c.empty();const q=this.query.toLocaleLowerCase();
+    this.calendarPointerCleanup?.();c.empty();const q=this.query.toLocaleLowerCase();
     const tasks=all.filter(t=>(!this.tag||(t.meta.tags||[]).includes(this.tag))&&`${t.meta.title} ${t.body} ${(t.meta.tags||[]).join(' ')}`.toLocaleLowerCase().includes(q));
     if(this.mode==='stats'){this.renderStats(c,tasks);return;}
     if(this.mode==='planner'){this.renderPlanner(c,tasks);return;}
@@ -386,7 +401,7 @@ class TaskView extends ItemView {
     for(const [key,label]of Object.entries(PRIORITIES)){
       const item=legend.createSpan({cls:'tf-priority-'+key});item.createSpan({cls:'tf-priority-swatch',attr:{'aria-hidden':'true'}});item.appendText(label);
     }
-    legend.createSpan({text:'Punkt: Status · Terminlabel: Fälligkeit',cls:'tf-legend-note'});
+    legend.createSpan({text:'Farbige Kennzeichnung: Status · Kartenrand und Prioritätslabel: Priorität',cls:'tf-legend-note'});
     const live=c.createDiv({cls:'tf-live',attr:{'aria-live':'polite','role':'status'}});if(this.lastMove)live.setText(this.lastMove);
   }
   async setStatus(task,status){
@@ -402,7 +417,7 @@ class TaskView extends ItemView {
     card.ondragstart=e=>{if(this.pendingPath||e.target.closest('input,select,textarea')){e.preventDefault();return;}this.dragPath=t.file.path;e.dataTransfer.setData('text/taskflow',t.file.path);e.dataTransfer.effectAllowed='move';card.addClass('tf-dragging');};
     card.ondragend=()=>{this.dragPath=null;card.removeClass('tf-dragging');for(const el of this.contentEl.querySelectorAll('.tf-drag-target'))el.removeClass('tf-drag-target');};
     const top=card.createDiv({cls:'tf-card-top'}),status=top.createSpan({cls:'tf-status-label'});status.createSpan({cls:'tf-status-dot',attr:{'aria-hidden':'true'}});status.appendText(STATES[t.meta.status]);
-    top.createSpan({text:(priority==='high'?'↑ ':priority==='low'?'↓ ':'– ')+PRIORITIES[priority],cls:'tf-priority-label'});
+    top.createSpan({text:(priority==='high'?'↑ ':priority==='low'?'↓ ':'– ')+PRIORITIES[priority],cls:'tf-priority-label',attr:{'aria-label':'Priorität: '+PRIORITIES[priority]}});
     button(card,t.meta.title,()=>new TaskEditor(this.plugin,t).open(),'tf-title');
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
@@ -420,7 +435,7 @@ class TaskView extends ItemView {
     const controls=card.createDiv({cls:'tf-card-actions'});const select=controls.createEl('select');select.setAttribute('aria-label','Status für '+t.meta.title);
     for(const [value,text]of Object.entries(STATES))select.createEl('option',{value,text});select.value=t.meta.status;
     select.onchange=()=>{if(this.pendingPath){select.value=t.meta.status;return;}select.disabled=true;this.setStatus(t,select.value);};
-    button(controls,'Notiz',()=>this.app.workspace.getLeaf(false).openFile(t.file),'tf-text-button');
+    button(controls,'In Obsidian öffnen',()=>this.app.workspace.getLeaf(false).openFile(t.file),'tf-text-button');
     button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>m.archived=!m.archived);}catch(e){report(e);}},'tf-text-button');
     return card;
   }
@@ -460,7 +475,7 @@ class TaskView extends ItemView {
   renderPlanner(c,tasks){
     const day=validDay(this.plannerDate)?this.plannerDate:today();this.plannerDate=day;
     const displayed=this.plannerMode==='calendar'?calendarTasks(tasks):tasks;
-    const plan=dayPlan(displayed,day),poolTasks=dayPlan(tasks,day).pool.filter(t=>!plan.planned.some(p=>p.file.path===t.file.path)),planner=c.createDiv({cls:'tf-planner'});
+    const plan=dayPlan(displayed,day),plannedPaths=new Set(plan.planned.map(t=>t.file.path)),poolTasks=plan.pool.filter(t=>!plannedPaths.has(t.file.path)).map(t=>t.originalTask||t),planner=c.createDiv({cls:'tf-planner'});
     const controls=planner.createDiv({cls:'tf-planner-controls'});
     const previous=button(controls,'‹',()=>{this.plannerDate=shiftDay(day,this.plannerMode==='calendar'&&this.calendarSpan==='week'?-7:-1);this.render();},'tf-planner-step');previous.setAttribute('aria-label',this.plannerMode==='calendar'&&this.calendarSpan==='week'?'Vorherige Woche':'Vorheriger Tag');
     const date=controls.createEl('input',{type:'date'});date.value=day;date.setAttribute('aria-label','Planungstag');date.dataset.tfFocus='planner-date';date.onchange=()=>{if(validDay(date.value)){this.plannerDate=date.value;this.render();}};
@@ -550,7 +565,9 @@ class TaskView extends ItemView {
     const done=button(event,task.meta.status==='done'?'✓':'○',e=>{e.stopPropagation();this.setStatus(task,task.meta.status==='done'?'open':'done');},'tf-calendar-check');done.setAttribute('aria-label',task.meta.title+(task.meta.status==='done'?' wieder öffnen':' erledigen'));
     const edit=button(event,'',()=>{if(Date.now()<(this.calendarIgnoreClickUntil||0))return;new TaskEditor(this.plugin,task.originalTask||task).open();},'tf-calendar-edit');
     const start=timeMinutes(task.meta.scheduledTime);const time=start===null?'Flexibel':task.meta.scheduledTime+'–'+clockTime(start+durationMinutes(task.meta));
-    edit.setAttribute('aria-label',task.meta.title+' bearbeiten · '+dateValue(task.meta.scheduled)+' · '+time);edit.setAttribute('title',task.meta.title+' · '+time+' · '+STATES[task.meta.status]);
+    edit.setAttribute('aria-label',task.meta.title+' bearbeiten · '+dateValue(task.meta.scheduled)+' · '+time);edit.setAttribute('title',task.meta.title+' · '+time+' · '+STATES[task.meta.status]+' · Priorität: '+PRIORITIES[task.meta.priority||'normal']);
+    done.setAttribute('title','Status: '+STATES[task.meta.status]);
+    event.setAttribute('aria-label',STATES[task.meta.status]+' · Priorität: '+(PRIORITIES[task.meta.priority]||PRIORITIES.normal));
     if(!compact)edit.createSpan({text:time,cls:'tf-calendar-event-time'});
     edit.createSpan({text:task.meta.title,cls:'tf-calendar-event-title'});if(recurrenceLabel(task.meta))edit.createSpan({text:'↻',cls:'tf-calendar-event-time',attr:{title:recurrenceLabel(task.meta)}});
     if(task.calendarAutomatic)edit.createSpan({text:'Fällig',cls:'tf-calendar-event-time',attr:{title:'Automatisch am Fälligkeitstag angezeigt · noch keine feste Tagesplanung'}});return event;
@@ -642,18 +659,27 @@ class TaskView extends ItemView {
 }
 class TaskFlow extends Plugin {
   async onload(){
-    this.settings=Object.assign({folder:'TaskFlow/Aufgaben'},await this.loadData());this.tasks=[];this.scanVersion=0;
+    this.settings=Object.assign({folder:'TaskFlow/Aufgaben'},await this.loadData());this.tasks=[];this.scanVersion=0;this.stopped=false;
     this.registerView(VIEW,leaf=>new TaskView(leaf,this));this.addRibbonIcon('kanban-square','TaskFlow öffnen',()=>this.open());
     this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'planner',name:'Tagesplaner öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='planner';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'new',name:'Neue Aufgabe',callback:()=>new TaskEditor(this).open()});
     this.addSettingTab(new class extends PluginSettingTab{display(){this.containerEl.empty();this.containerEl.createEl('h2',{text:'TaskFlow'});this.containerEl.createEl('p',{text:'Aufgaben liegen als Markdown im Ordner '+this.plugin.settings.folder+'. Bestehende Aufgaben anderer Plugins werden nicht automatisch importiert.'});}}(this.app,this));
     const refresh=()=>{clearTimeout(this.timer);this.timer=setTimeout(()=>this.scan().catch(report),180);};
     for(const event of ['create','modify','delete','rename'])this.registerEvent(this.app.vault.on(event,refresh));
-    this.register(()=>clearTimeout(this.timer));this.registerInterval(window.setInterval(()=>this.scan().catch(report),60000));this.app.workspace.onLayoutReady(()=>this.scan().catch(report));
+    this.register(()=>{this.stopped=true;this.scanVersion++;clearTimeout(this.timer);});this.registerInterval(window.setInterval(()=>this.scan().catch(report),60000));this.app.workspace.onLayoutReady(()=>this.scan().catch(report));
   }
   async open(){let leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(!leaf){leaf=this.app.workspace.getLeaf('tab');await leaf.setViewState({type:VIEW,active:true});}this.app.workspace.revealLeaf(leaf);}
   async scan(){
+    if(this.stopped)return;
     const version=++this.scanVersion;const tasks=[];let invalid=0;
-    for(const file of this.app.vault.getMarkdownFiles().filter(f=>f.path.startsWith(this.settings.folder+'/'))){try{const raw=await this.app.vault.read(file);const {meta,body}=decode(raw);if(!(meta.status in STATES)||typeof meta.title!=='string'||(meta.tags!==undefined&&(!Array.isArray(meta.tags)||meta.tags.some(t=>typeof t!=='string'))))throw new Error('Ungültige Aufgabenfelder');tasks.push({file,raw,meta,body});}catch(e){invalid++;console.warn('TaskFlow überspringt',file.path,e);}}
+    const files=this.app.vault.getMarkdownFiles().filter(f=>f.path.startsWith(this.settings.folder+'/'));
+    // Bound parallel reads so a large series does not serialize every disk access.
+    for(let i=0;i<files.length;i+=16){
+      const batch=await Promise.all(files.slice(i,i+16).map(async file=>{
+        try{const raw=await this.app.vault.read(file),{meta,body}=decode(raw);validateTaskFields(meta);return {file,raw,meta,body};}
+        catch(e){invalid++;console.warn('TaskFlow überspringt',file.path,e);return null;}
+      }));
+      tasks.push(...batch.filter(Boolean));if(version!==this.scanVersion||this.stopped)return;
+    }
     if(version!==this.scanVersion)return;
     if(await this.ensureRecurrences(tasks))return this.scan();
     if(version!==this.scanVersion)return;const signature=JSON.stringify([today(),tasks.map(t=>[t.file.path,t.raw]).sort((a,b)=>a[0].localeCompare(b[0]))]);const changed=signature!==this.scanSignature;this.scanSignature=signature;this.tasks=tasks;if(changed)for(const leaf of this.app.workspace.getLeavesOfType(VIEW))leaf.view.render();if(invalid!==this.invalidCount&&invalid)new Notice(`${invalid} Datei(en) im TaskFlow-Ordner konnten nicht gelesen werden. Details in der Entwicklerkonsole.`);this.invalidCount=invalid;
@@ -667,6 +693,7 @@ class TaskFlow extends Plugin {
         try{
           if(typeof source.meta.id!=='string'||!/^[a-zA-Z0-9_-]+$/.test(source.meta.id))throw new Error('Serienaufgabe benötigt eine gültige ID. Bitte im Editor speichern.');
           for(const day of recurrenceDates(source.meta.recurrence,reference)){
+            if(this.stopped)return created;
             const key=source.meta.id+'|'+day;if(known.has(key))continue;
             const path=normalizePath(this.settings.folder+'/'+source.meta.id+'--'+day+'.md');
             if(this.app.vault.getAbstractFileByPath(path))continue;
@@ -682,18 +709,18 @@ class TaskFlow extends Plugin {
   }
   stamp(meta,previous){meta.updated=new Date().toISOString();if(meta.status==='done'&&previous!=='done')meta.completed=meta.updated;if(meta.status!=='done')delete meta.completed;}
   async change(task,mutate,bodyFn=body=>body,expected){
-    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);const previous=meta.status;mutate(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
+    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);const previous=meta.status;mutate(meta);validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }
   async updateNotes(task,expectedNotes,newNotes){
     await this.app.vault.process(task.file,raw=>{const {meta,body}=decode(raw);const updated=patchNoteBody(body,expectedNotes,newNotes);this.stamp(meta,meta.status);return encode(meta,updated);});
     await this.scan();
   }
   async saveTask(task,meta,body){
-    validatePlanning(meta);validateRecurrence(meta.recurrence);if(meta.recurrence&&!meta.id)meta.id=crypto.randomUUID();
+    validateTaskFields(meta);validatePlanning(meta);validateRecurrence(meta.recurrence);if(meta.recurrence&&!meta.id)meta.id=crypto.randomUUID();
     if(task){await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen; deine Eingabe bleibt hier erhalten.');this.stamp(meta,decode(raw).meta.status);return encode(meta,body);});}
     else{const folder=normalizePath(this.settings.folder);let current='';for(const part of folder.split('/')){current=current?current+'/'+part:part;if(!this.app.vault.getAbstractFileByPath(current))await this.app.vault.createFolder(current);}meta.id=crypto.randomUUID();this.stamp(meta,null);await this.app.vault.create(`${folder}/${meta.id}.md`,encode(meta,body));}
     await this.scan();
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields};

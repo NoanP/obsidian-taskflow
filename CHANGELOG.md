@@ -4,6 +4,21 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-13
+
+### Changed
+- Durchgehend neutrale graue Bedienelemente, Navigation, Fokusmarkierungen, Fälligkeitslabels und allgemeine Diagramme; Blau-/Apricot-Akzentpalette entfernt.
+- Farben ausschließlich für Status und Priorität: kontrastreichere Farbtöne für helles/dunkles Theme, beschriftete farbige Kartenlabels, größere Statuspunkte, farbige Spaltenlinien und breiterer Prioritätsrand.
+- Kalenderblöcke zeigen Status am oberen Rand und Erledigen-Button, Priorität am linken Rand; Textalternativen und Hinweise ergänzt.
+- Überholte Styles, ungenutzter Setting-Import und doppelte Tagesplan-Auswertung entfernt. Notiz-Verknüpfung verständlicher als „In Obsidian öffnen“ beschriftet.
+- Aufgaben werden in begrenzten Gruppen mit maximal 16 parallelen Lesezugriffen statt vollständig nacheinander eingelesen.
+
+### Fixed
+- Teilaufgaben in Markdown-Codeblöcken werden beim Bearbeiten, Abhaken und Erzeugen von Serienterminen nicht mehr verändert. Plus-Listen werden einheitlich als Teilaufgaben unterstützt.
+- Ungültige Statuswerte (auch Namen geerbter Objektfelder), leere Titel, fehlerhafte Tags und ungültige Fälligkeitsdaten werden beim Speichern abgefangen.
+- Kurze späte Kalendertermine erweitern den sichtbaren Zeitbereich entsprechend ihrer minimalen Darstellungshöhe.
+- Wechsel der Suchergebnisse räumt aktive Kalender-Ziehoperationen auf; Deaktivieren des Plugins stoppt weitere Scans und Serienerzeugung.
+
 ## [0.8.0] - 2026-11-13
 
 ### Added
