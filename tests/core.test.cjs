@@ -176,3 +176,25 @@ test('calendar pointer targets snap to fifteen minutes and respect grab offset',
  assert.equal(core.calendarDropMinute(394,100,420,15),615);
  assert.equal(core.calendarDropMinute(-100,100,0),0);
 });
+test('dated open and in-progress tasks appear on their exact deadlines without writes',()=>{
+ const items=[task('open','2026-11-10'),task('progress','2026-11-20')];items[0].meta.scheduledTime='09:00';const before=JSON.stringify(items);
+ const projected=core.calendarTasks(items);assert.equal(projected.length,2);assert.equal(projected[0].meta.scheduled,'2026-11-10');assert.equal(projected[1].meta.scheduled,'2026-11-20');assert.equal(projected[0].meta.scheduledTime,undefined);assert.equal(projected[0].originalTask,items[0]);assert.equal(projected[0].calendarAutomatic,true);assert.equal(JSON.stringify(items),before);
+ assert.equal(core.calendarTasks(projected).length,2);
+});
+test('calendar automatic inclusion excludes undated, invalid, delayed, done and archived tasks',()=>{
+ const archived=task('open','2026-11-13');archived.meta.archived=true;
+ const items=[task('open',''),task('open','2026-02-30'),task('progress','n/a'),task('delayed','2026-11-13'),task('done','2026-11-13'),archived];assert.equal(core.calendarTasks(items).length,0);
+});
+test('manual calendar plan overrides deadline and does not duplicate any status',()=>{
+ for(const status of ['open','progress','delayed','done']){
+  const item=task(status,'2026-11-13');Object.assign(item.meta,{scheduled:'2026-11-16',scheduledTime:'10:30'});
+  const projected=core.calendarTasks([item]);assert.equal(projected.length,1);assert.equal(projected[0],item);assert.equal(projected[0].calendarAutomatic,undefined);assert.equal(projected[0].meta.scheduledTime,'10:30');assert.equal(projected[0].meta.scheduled,'2026-11-16');
+  core.assignDay(item.meta,'');assert.equal(core.calendarTasks([item]).length,['open','progress'].includes(status)?1:0);
+ }
+});
+test('completing an automatic calendar entry keeps it on its displayed day and preserves file data',async()=>{
+ const original={file:{path:'task.md'},...task('progress','2026-11-13')};const projected=core.calendarTasks([original])[0];let raw=core.encode({...original.meta,custom:42},'My notes\n- [ ] Subtask\n');
+ const p=new Plugin();p.app={vault:{process:async(file,fn)=>{assert.equal(file,original.file);raw=fn(raw)}}};p.scan=async()=>{};
+ const view={plugin:p,contentEl:{setAttribute(){},removeAttribute(){},querySelector(){return null}}};
+ await core.TaskView.prototype.setStatus.call(view,projected,'done');const saved=core.decode(raw);assert.equal(saved.meta.status,'done');assert.equal(saved.meta.scheduled,'2026-11-13');assert.equal(saved.meta.due,'2026-11-13');assert.equal(saved.meta.custom,42);assert.ok(saved.meta.completed);assert.equal(saved.body,'My notes\n- [ ] Subtask\n');assert.equal(core.calendarTasks([{file:original.file,...saved}]).length,1);
+});

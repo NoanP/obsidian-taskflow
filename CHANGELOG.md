@@ -4,6 +4,17 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-13
+
+### Added
+- Offene Aufgaben und Aufgaben in Arbeit mit Fälligkeit erscheinen automatisch am Fälligkeitstag unter „Flexibel“ im Kalender, markiert mit „Fällig“.
+- Wochenzähler und Tageszusammenfassung berücksichtigen automatische Kalendereinträge.
+
+### Changed
+- Explizite Tagesplanung hat Vorrang; keine doppelten Kalenderblöcke. Undatierte Aufgaben werden nicht automatisch eingeplant. Überfällige Aufgaben bleiben am ursprünglichen Termin.
+- Automatische Anzeige verändert keine Aufgabendateien. Bearbeiten öffnet die Originalaufgabe; Ziehen erstellt eine explizite Planung und bewahrt die Deadline.
+- Direkt im Kalender erledigte automatische Einträge behalten ihren angezeigten Tag als Tagesplanung und bleiben sichtbar. Archivierte sowie ungeplante verzögerte/erledigte Aufgaben werden nicht automatisch aufgenommen.
+
 ## [0.6.0] - 2026-11-13
 
 ### Added

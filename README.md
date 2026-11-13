@@ -52,6 +52,14 @@ Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezi
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
+## Automatische Termine ab 0.7.0
+
+Aufgaben mit Status **Offen** oder **In Arbeit** und gültigem Fälligkeitsdatum erscheinen automatisch am **Fälligkeitstag** unter **Tagesplaner → Kalender → Flexibel**, mit dem Hinweis „Fällig“. Das gilt auch für bestehende Aufgaben. Überfällige Aufgaben bleiben am ursprünglichen Datum; Aufgaben ohne Termin werden nicht automatisch eingetragen. Eine manuelle Tagesplanung hat Vorrang und erzeugt keinen zweiten Eintrag. Suche und Tagfilter gelten weiterhin.
+
+Automatische Anzeige, Bearbeiten der Originalaufgabe und Erledigen mit erhaltenem Kalendereintrag wurden in der lokalen Vorschau mit Beispieldaten geprüft.
+
+Die Anzeige schreibt keine Planungsdaten in deine Notizen. Titel öffnen die Originalaufgabe. Durch Ziehen wird ein fester Planungstag bzw. eine Startzeit gespeichert, die Fälligkeit bleibt erhalten. Wenn du einen automatischen Eintrag direkt im Kalender erledigst, wird sein angezeigter Tag als Planung gespeichert, damit der erledigte Eintrag sichtbar bleibt. Ungeplante erledigte, verzögerte und archivierte Aufgaben werden nicht automatisch aufgenommen. Nach Entfernen einer manuellen Planung erscheint eine offene/aktive datierte Aufgabe wieder an ihrer Fälligkeit.
+
 ## Interaktiver Kalender ab 0.6.0
 
 Unter **Tagesplaner → Kalender** findest du eine Wochenansicht mit Zeitraster. Mit **Tag** wechselst du zur Ansicht des gewählten Tages; ein Klick auf einen Tageskopf öffnet diesen Tag ebenfalls. Die Pfeile oben blättern im Wochenmodus um eine Woche, sonst um einen Tag.
