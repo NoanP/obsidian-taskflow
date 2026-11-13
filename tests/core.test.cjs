@@ -264,3 +264,23 @@ test('unloaded plugin cannot create additional recurring tasks',async()=>{
  const p=new Plugin();p.stopped=true;p.settings={folder:'Tasks'};let writes=0;p.app={vault:{create:async()=>writes++,getAbstractFileByPath:()=>false}};
  assert.equal(await p.ensureRecurrences([{file:{path:'Tasks/source.md'},meta:{id:'source',recurrence:{frequency:'daily',interval:1,start:'2026-11-13'}},body:''}],'2026-11-13'),0);assert.equal(writes,0);
 });
+test('search combines terms across title, notes, subtasks, tags and dates',()=>{
+ const items=[{meta:{title:'Überprüfung Straße',status:'open',tags:['Arbeit'],due:'2026-11-13'},body:'Notiz\n- [ ] Agenda vorbereiten'},task('open','')];
+ assert.equal(core.filterTasks(items,{query:'UBERPRUFUNG strasse #arbeit agenda 2026-11-13'}).length,1);
+ assert.equal(core.filterTasks(items,{query:'agenda fehlt'}).length,0);assert.equal(core.filterTasks(items,{query:'  \n  '}).length,2);
+});
+test('status, priority, tag and query intersect without modifying tasks',()=>{
+ const items=[{meta:{title:'Meeting',status:'progress',priority:'high',tags:['team'],due:'2026-11-13'},body:'Agenda'}, {meta:{title:'Meeting',status:'open',priority:'high',tags:['team']},body:'Agenda'}, {meta:{title:'Meeting',status:'progress',priority:'low',tags:['team']},body:'Agenda'}];
+ const before=JSON.stringify(items),filtered=core.filterTasks(items,{query:'agenda',tag:'team',status:'progress',priority:'high',due:'today'},'2026-11-13');assert.equal(filtered.length,1);assert.equal(filtered[0],items[0]);assert.equal(JSON.stringify(items),before);assert.equal(core.filterTasks(items,{tag:'Team'}).length,0);
+});
+test('due filters respect date boundaries and overdue excludes done',()=>{
+ const items=[task('open','2026-11-12'),task('done','2026-11-12'),task('progress','2026-11-13'),task('delayed','2026-11-19'),task('open','2026-11-20'),task('open',''),task('open','2026-02-30')];
+ const filter=due=>core.filterTasks(items,{due},'2026-11-13');assert.equal(filter('overdue').length,1);assert.equal(filter('today').length,1);assert.equal(filter('week').length,2);assert.equal(filter('none').length,2);
+ assert.equal(core.filterTasks([task('open','2027-01-01')],{due:'week'},'2026-12-28').length,1);
+});
+test('search cache reuses immutable scan objects and new scans use refreshed content',()=>{
+ const cache=new WeakMap(),item={meta:{title:'Original',status:'open'},body:'Notiz'};assert.equal(core.filterTasks([item],{query:'Original'},'2026-11-13',cache).length,1);assert.ok(cache.has(item));
+ assert.equal(core.filterTasks([item],{query:'Notiz'},'2026-11-13',cache).length,1);
+ const updated={...item,meta:{...item.meta,title:'Geändert'}};assert.equal(core.filterTasks([updated],{query:'Original'},'2026-11-13',cache).length,0);assert.equal(core.filterTasks([updated],{query:'geandert'},'2026-11-13',cache).length,1);
+ assert.equal(core.filterTasks([item],{priority:'normal'}).length,1);
+});

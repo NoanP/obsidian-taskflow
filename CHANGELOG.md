@@ -4,6 +4,19 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-13
+
+### Added
+- Kompakte Suche mit aufklappbaren Filtern für Tag, Status, Priorität und Fälligkeit.
+- Kombinierbare Fälligkeiten: überfällig, heute, nächste 7 Tage einschließlich heute oder ohne Termin.
+- Trefferzahl, sichtbare aktive Filter, gemeinsames Zurücksetzen und verständlicher Leerzustand.
+- Mehrwortsuche über Titel, Notizen, Teilaufgaben, Tags, Fälligkeits- und Planungsdatum; unabhängig von Großschreibung und Akzenten, ß und ss werden gleich behandelt.
+
+### Changed
+- Filter gelten einheitlich für Board, Tagesplaner, Kalender, Statistik und Archiv und bleiben beim Ansichtswechsel innerhalb des geöffneten TaskFlow-Tabs erhalten.
+- Suche mit 120 ms Eingabepause und wiederverwendbarem Suchtext je Aufgabenstand; keine zusätzlichen Bibliotheken und keine Speicherung von Suchbegriffen im Vault.
+- Escape leert das Suchfeld; Zurücksetzen löscht zusätzlich alle Filter. Die Gesamtzahlen im Board-Kopf bleiben ungefiltert, die Trefferzahl benennt die Auswahl.
+
 ## [0.9.0] - 2026-11-13
 
 ### Changed

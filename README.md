@@ -2,6 +2,16 @@
 
 Ein lokales Aufgabenboard mit Dashboard, Statistik, Tags, Fälligkeit, Priorität, Notizen und Teilaufgaben. Oberfläche auf Deutsch. Aufgaben sind normale Markdown-Dateien in `TaskFlow/Aufgaben`. Keine Anmeldung, kein eigener Server, keine Telemetrie.
 
+## Suche und Filter ab 0.10.0
+
+Das Suchfeld über dem Board durchsucht Titel, Notizen, Teilaufgaben, Tags sowie Fälligkeits- und Planungsdaten. Mehrere Wörter müssen alle vorkommen, können aber in unterschiedlichen Feldern stehen. Zum Beispiel findet `meeting agenda` ein Meeting mit Agenda in der Notiz. Groß-/Kleinschreibung und Akzente sind unerheblich; `uberprufung` findet „Überprüfung“, `strasse` findet „Straße“. Mit `#arbeit` suchst du auch nach einem Tag im Suchtext.
+
+Unter **Filter** lassen sich **Tag**, **Status**, **Priorität** und **Fälligkeit** kombinieren. Überfällig zeigt nur unerledigte Aufgaben vor heute. Heute und Nächste 7 Tage berücksichtigen das Fälligkeitsdatum; letztere Auswahl umfasst heute und die sechs folgenden Tage. Ohne Termin umfasst Aufgaben ohne gültige Fälligkeit. Ein Tagesplanungsdatum ersetzt für diese Filter nicht die Deadline.
+
+Eine Zeile zeigt die Trefferzahl und aktive Filter. **Zurücksetzen** leert Suche und sämtliche Filter; **Escape** im Suchfeld leert nur die Suche. Die Auswahl gilt auch im Tagesplaner, Kalender, in der Statistik und im Archiv und bleibt beim Wechsel innerhalb desselben geöffneten TaskFlow-Tabs erhalten. Nach Schließen/Neuladen beginnt die Ansicht ungefiltert. Die Gesamtzahlen oben im Board zeigen weiterhin den gesamten aktiven bzw. archivierten Bestand; die Trefferzahl darunter zeigt die gefilterte Auswahl. Suche und Filter ändern keine Aufgaben.
+
+Mehrwortsuche, kombinierte Filter, Leerzustand und vollständiges Zurücksetzen wurden in einer lokalen Vorschau mit Beispieldaten bedient. Die Filterlogik und bestehende Funktionen sind durch insgesamt 52 automatisierte Prüfungen abgedeckt; die Vorschau simuliert den Obsidian-Host.
+
 ## Grauer Look und Systemprüfung ab 0.9.0
 
 Die Oberfläche verwendet das Obsidian-Blatt als Hintergrund und neutrale graue Bedienelemente. Die frühere Blau-/Apricot-Akzentpalette entfällt. Farbe hat eine feste Bedeutung:

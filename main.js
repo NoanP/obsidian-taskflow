@@ -46,6 +46,21 @@ function analytics(tasks,period=14,now=new Date()){
   for(let i=0;i<days.length;i+=step){const group=days.slice(i,i+step);bins.push({start:group[0].key,end:group[group.length-1].key,count:group.reduce((s,d)=>s+d.count,0)});}
   return {summary,active:summary.total-summary.done,rate:summary.total?Math.round(summary.done/summary.total*100):0,days,bins,completed:days.reduce((s,d)=>s+d.count,0),due,priority,missingCompletion,tags:[...tags.values()].sort((a,b)=>b.total-a.total||a.tag.localeCompare(b.tag))};
 }
+const DUE_FILTERS={'':'Alle Termine',overdue:'Überfällig',today:'Heute',week:'Nächste 7 Tage',none:'Ohne Termin'};
+function searchText(value){return String(value).normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase().replace(/ß/g,'ss');}
+function filterTasks(tasks,filters={},reference=today(),index=new WeakMap()){
+  const terms=searchText(filters.query||'').trim().split(/\s+/).filter(Boolean),end=shiftDay(reference,6);
+  return tasks.filter(task=>{
+    const meta=task.meta,priority=Object.hasOwn(PRIORITIES,meta.priority)?meta.priority:'normal';
+    if(filters.tag&&!(meta.tags||[]).includes(filters.tag)||filters.status&&meta.status!==filters.status||filters.priority&&priority!==filters.priority)return false;
+    const date=dateValue(meta.due),due=validDay(date)?date:'';
+    if(filters.due==='overdue'&&(!due||due>=reference||meta.status==='done')||filters.due==='today'&&due!==reference||filters.due==='week'&&(!due||due<reference||due>end)||filters.due==='none'&&due)return false;
+    if(!terms.length)return true;
+    let text=index.get(task);
+    if(text===undefined){text=searchText([meta.title,task.body,(meta.tags||[]).map(tag=>'#'+tag).join(' '),dateValue(meta.due),dateValue(meta.scheduled)].join(' '));index.set(task,text);}
+    return terms.every(term=>text.includes(term));
+  });
+}
 function svgElement(parent,name,attributes={}){
   const el=parent.ownerDocument.createElementNS('http://www.w3.org/2000/svg',name);
   for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));parent.appendChild(el);return el;
@@ -288,10 +303,10 @@ class TaskEditor extends Modal {
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.searchIndex=new WeakMap();this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
-  async onClose(){this.calendarPointerCleanup?.();this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
+  async onClose(){clearTimeout(this.searchTimer);this.calendarPointerCleanup?.();this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
   captureCards(){
     const cards=new Map();
     for(const el of this.contentEl.querySelectorAll('.tf-card'))cards.set(el.dataset.path,{rect:el.getBoundingClientRect(),status:el.dataset.status});
@@ -314,7 +329,7 @@ class TaskView extends ItemView {
     }
   }
   render(){
-    if(this.closed)return;
+    clearTimeout(this.searchTimer);if(this.closed)return;
     this.calendarPointerCleanup?.();
     const c=this.contentEl;
     // End an interrupted movement before measuring the stable board positions.
@@ -360,23 +375,38 @@ class TaskView extends ItemView {
     toolbar.createSpan({text:this.mode==='planner'?'FOKUS FÜR DEN TAG · ÜBERBLICK FÜR DIE WOCHE':this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
     if(this.showArchive)button(toolbar,this.mode==='stats'?'Kanban':'Statistik',()=>{this.mode=this.mode==='stats'?'board':'stats';this.render();},'tf-text-button');
     const filters=toolbar.createDiv({cls:'tf-filters'});
-    const search=filters.createEl('input',{type:'search',placeholder:'Aufgaben suchen …',cls:'tf-search'});search.value=this.query;search.dataset.tfFocus='search';search.setAttribute('aria-label','Aufgaben suchen');
-    const select=filters.createEl('select');select.dataset.tfFocus='tag';select.setAttribute('aria-label','Nach Tag filtern');select.createEl('option',{text:'Alle Tags',value:''});
-    // Keep a selected tag visible even when its last task has just been archived.
+    const search=filters.createEl('input',{type:'search',placeholder:'Todos durchsuchen …',cls:'tf-search'});search.value=this.query;search.dataset.tfFocus='search';search.setAttribute('aria-label','Aufgaben suchen');search.setAttribute('title','Titel, Notizen, Teilaufgaben, Tags und Daten durchsuchen · mehrere Begriffe kombinieren');
+    const activeCount=[this.tag,this.statusFilter,this.priorityFilter,this.dueFilter].filter(Boolean).length;
+    const toggle=button(filters,'Filter'+(activeCount?' · '+activeCount:''),()=>{this.filtersOpen=!this.filtersOpen;fields.hidden=!this.filtersOpen;toggle.setAttribute('aria-expanded',String(this.filtersOpen));},'tf-filter-toggle');toggle.setAttribute('aria-expanded',String(this.filtersOpen));
+    const fields=filters.createDiv({cls:'tf-filter-fields'});fields.hidden=!this.filtersOpen;
+    const dropdown=(name,values,key)=>{
+      const label=fields.createEl('label');label.createSpan({text:name});const select=label.createEl('select');select.setAttribute('aria-label',name);select.dataset.tfFocus=key;
+      for(const [value,text]of Object.entries(values))select.createEl('option',{value,text});select.value=this[key];select.onchange=()=>{this[key]=select.value;this.filtersOpen=true;this.render();};return select;
+    };
     if(this.tag&&!tags.includes(this.tag))tags.push(this.tag);
-    tags.forEach(tag=>select.createEl('option',{text:'#'+tag,value:tag}));select.value=this.tag;
+    dropdown('Tag',{'':'Alle Tags',...Object.fromEntries(tags.map(tag=>[tag,'#'+tag]))},'tag');
+    dropdown('Status',{'':'Alle Status',...STATES},'statusFilter');
+    dropdown('Priorität',{'':'Alle Prioritäten',...PRIORITIES},'priorityFilter');
+    dropdown('Fälligkeit',DUE_FILTERS,'dueFilter').setAttribute('title','Nächste 7 Tage: heute bis einschließlich '+shiftDay(today(),6));
     const results=main.createDiv({cls:'tf-results'});
-    search.oninput=()=>{this.query=search.value;this.renderResults(results,all);};
-    select.onchange=()=>{this.tag=select.value;this.render();};
+    search.oninput=event=>{this.query=search.value;clearTimeout(this.searchTimer);if(event.isComposing)return;this.searchTimer=setTimeout(()=>{if(!this.closed&&results.isConnected)this.renderResults(results,all);},120);};
+    search.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();this.query='';this.render();this.contentEl.querySelector('[data-tf-focus="search"]')?.focus();}};
     this.renderResults(results,all);
     const footer=main.createDiv({cls:'tf-footer'});footer.createSpan({text:this.plugin.settings.folder});footer.createSpan({text:'TaskFlow '+this.plugin.manifest.version});
     c.scrollTop=scroll;
     if(focus){const target=c.querySelector(`[data-tf-focus="${focus.key}"]`);if(target){target.focus({preventScroll:true});if((target.type==='search'||target.tagName==='TEXTAREA')&&Number.isInteger(focus.start))target.setSelectionRange(focus.start,focus.end);}}
     this.animateMoves(previous);
   }
+  resetFilters(){this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.render();}
   renderResults(c,all){
-    this.calendarPointerCleanup?.();c.empty();const q=this.query.toLocaleLowerCase();
-    const tasks=all.filter(t=>(!this.tag||(t.meta.tags||[]).includes(this.tag))&&`${t.meta.title} ${t.body} ${(t.meta.tags||[]).join(' ')}`.toLocaleLowerCase().includes(q));
+    this.calendarPointerCleanup?.();c.empty();
+    const tasks=filterTasks(all,{query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter},today(),this.searchIndex);
+    const active=!!(this.query.trim()||this.tag||this.statusFilter||this.priorityFilter||this.dueFilter);
+    const info=c.createDiv({cls:'tf-filter-info'});
+    const labels=[this.tag?'#'+this.tag:'',STATES[this.statusFilter],PRIORITIES[this.priorityFilter],this.dueFilter?DUE_FILTERS[this.dueFilter]:''].filter(Boolean);
+    info.createSpan({text:tasks.length+' von '+all.length+' Aufgaben'+(labels.length?' · '+labels.join(' · '):''),attr:{role:'status','aria-live':'polite'}});
+    if(active)button(info,'Zurücksetzen',()=>this.resetFilters(),'tf-text-button');
+    if(active&&!tasks.length){c.createDiv({text:'Keine passenden Aufgaben. Ändere die Suche oder setze die Filter zurück.',cls:'tf-filter-empty'});if(this.mode==='board')return;}
     if(this.mode==='stats'){this.renderStats(c,tasks);return;}
     if(this.mode==='planner'){this.renderPlanner(c,tasks);return;}
     this.renderBoard(c,tasks);
@@ -723,4 +753,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText};

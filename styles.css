@@ -416,3 +416,10 @@
 @media(max-width:540px){.tf-recurrence-fields{grid-template-columns:1fr}}
 .tf-editor-modal :is(input,select,textarea,button):focus-visible{outline:2px solid var(--tf-control-line)!important;outline-offset:2px}
 .tf-root input[type=checkbox],.tf-editor-modal input[type=checkbox]{accent-color:#888;background-color:var(--tf-control)}
+/* One search row with optional inline filters. */
+.tf-toolbar{align-items:flex-start}.tf-filters{flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;justify-content:end;gap:12px;min-width:230px}.tf-root input.tf-search{width:min(100%,320px);justify-self:end;font-size:13px;padding:8px 4px}.tf-root input.tf-search::-webkit-search-cancel-button{filter:grayscale(1)}
+.tf-root button.tf-filter-toggle{font-size:13px;color:var(--tf-ink);background:transparent;border:1px solid var(--tf-line);border-radius:5px;padding:8px 12px;height:auto;box-shadow:none}.tf-root button.tf-filter-toggle[aria-expanded=true]{background:var(--tf-control-soft)}
+.tf-filter-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:14px 0 0;border-top:1px solid var(--tf-line)}.tf-filter-fields[hidden]{display:none!important}.tf-filter-fields>label{display:flex;flex-direction:column;gap:6px;min-width:0}.tf-filter-fields>label>span{font-size:11px;color:var(--tf-quiet)}.tf-root .tf-filter-fields select{width:100%;max-width:100%;font-size:13px;padding:8px 3px}
+.tf-filter-info{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--tf-quiet);margin-bottom:18px;min-height:28px}.tf-filter-empty{padding:22px 0;color:var(--tf-quiet);font-size:13px}.tf-root .tf-filter-info button{font-size:12px}
+@container taskflow (max-width:800px){.tf-filters{flex-basis:100%}.tf-filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.tf-root input.tf-search{width:100%;justify-self:stretch}}
+@media(pointer:coarse){.tf-root button.tf-filter-toggle{min-height:44px}.tf-root input.tf-search,.tf-root .tf-filter-fields select{font-size:16px}}
