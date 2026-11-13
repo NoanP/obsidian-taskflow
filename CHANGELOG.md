@@ -4,6 +4,17 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+### Added
+- Notiz als direkt sichtbares, mehrzeiliges Textfeld unter der Terminanzeige jeder Aufgabenkarte, auch im Tagesplaner.
+- Notizen direkt auf der Karte speichern oder verwerfen; Cmd/Ctrl+Enter speichert ebenfalls.
+- Ungespeicherte Entwürfe bleiben bei Statuswechseln und Aktualisierungen derselben Ansicht erhalten.
+
+### Fixed
+- Inline-Notizänderungen erhalten den aktuellen Stand der Teilaufgaben und unbekannte Metadaten.
+- Zwischenzeitlich geänderte Notizen werden nicht überschrieben; der eigene Entwurf bleibt im Textfeld.
+
 ## [0.4.0] - 2026-11-13
 
 ### Added

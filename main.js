@@ -83,6 +83,16 @@ function editorBody(original,notes,items){
   if(extra.length){body=body.trimEnd()+'\n\n'+(/^##[ \t]+Teilaufgaben[ \t]*$/m.test(body)?'':'## Teilaufgaben\n\n')+extra.map(line).join('\n')+'\n';}
   return body;
 }
+function noteField(body){
+  const parsed=editorSubtasks(body),heading=parsed.notes.match(/^##[ \t]+Notizen[ \t]*\r?\n(?:\r?\n)?/);
+  const prefix=heading?heading[0]:'';
+  return {notes:parsed.notes,prefix,value:parsed.notes.slice(prefix.length).trimEnd()};
+}
+function patchNoteBody(body,expectedNotes,newNotes){
+  const parsed=editorSubtasks(body),normalize=value=>value.replace(/\r\n/g,'\n');
+  if(normalize(parsed.notes)!==normalize(expectedNotes))throw new Error('Die Notiz wurde zwischenzeitlich geändert. Bitte prüfe die aktuelle Notiz im Editor. Dein Entwurf bleibt im Textfeld erhalten.');
+  return editorBody(body,newNotes,parsed.items);
+}
 function validDay(value){
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
   const date=new Date(value+'T12:00:00');return !Number.isNaN(date.getTime())&&localDay(date)===value;
@@ -172,7 +182,7 @@ class TaskEditor extends Modal {
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.mode='board';this.plannerDate=today();this.plannerMode='agenda';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
   async onClose(){this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
@@ -254,7 +264,7 @@ class TaskView extends ItemView {
     this.renderResults(results,all);
     const footer=main.createDiv({cls:'tf-footer'});footer.createSpan({text:this.plugin.settings.folder});footer.createSpan({text:'TaskFlow '+this.plugin.manifest.version});
     c.scrollTop=scroll;
-    if(focus){const target=c.querySelector(`[data-tf-focus="${focus.key}"]`);if(target){target.focus({preventScroll:true});if(target.type==='search'&&focus.start!==null)target.setSelectionRange(focus.start,focus.end);}}
+    if(focus){const target=c.querySelector(`[data-tf-focus="${focus.key}"]`);if(target){target.focus({preventScroll:true});if((target.type==='search'||target.tagName==='TEXTAREA')&&Number.isInteger(focus.start))target.setSelectionRange(focus.start,focus.end);}}
     this.animateMoves(previous);
   }
   renderResults(c,all){
@@ -304,6 +314,7 @@ class TaskView extends ItemView {
     button(card,t.meta.title,()=>new TaskEditor(this.plugin,t).open(),'tf-title');
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
+    this.cardNote(card,t);
     const subs=subtasks(t.body);
     if(subs.length){
       const panelId='tf-subtasks-'+crypto.randomUUID(),expanded=this.expandedTasks.has(t.file.path);
@@ -319,6 +330,30 @@ class TaskView extends ItemView {
     button(controls,'Notiz',()=>this.app.workspace.getLeaf(false).openFile(t.file),'tf-text-button');
     button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>m.archived=!m.archived);}catch(e){report(e);}},'tf-text-button');
     return card;
+  }
+  cardNote(card,task){
+    const field=noteField(task.body),draft=this.noteDrafts.get(task.file.path);
+    const group=card.createDiv({cls:'tf-card-note'}),label=group.createEl('label');label.createSpan({text:'Notiz',cls:'tf-card-note-label'});
+    const input=label.createEl('textarea',{cls:'tf-card-note-input',placeholder:'Notiz zur Aufgabe …'});input.rows=3;input.value=draft?draft.value:field.value;input.dataset.tfFocus='note-'+encodeURIComponent(task.file.path);input.setAttribute('aria-label','Notiz für '+task.meta.title);input.disabled=!!draft?.saving;
+    const actions=group.createDiv({cls:'tf-card-note-actions'}),status=actions.createSpan({cls:'tf-card-note-status',attr:{'aria-live':'polite'}});
+    const error=group.createDiv({cls:'tf-card-note-error',attr:{role:'alert'}});error.hidden=!draft?.error;if(draft?.error)error.setText(draft.error);
+    const save=button(actions,'Speichern',async()=>{
+      const pending=this.noteDrafts.get(task.file.path);if(!pending||pending.saving)return;
+      pending.saving=true;pending.error='';input.disabled=true;save.disabled=true;discard.disabled=true;status.setText('Wird gespeichert …');error.hidden=true;
+      try{await this.plugin.updateNotes(task,pending.baseNotes,pending.prefix+pending.value);this.noteDrafts.delete(task.file.path);this.render();}
+      catch(e){pending.saving=false;pending.error=e.message||String(e);this.render();}
+    },'tf-note-save');
+    const discard=button(actions,'Verwerfen',()=>{this.noteDrafts.delete(task.file.path);this.render();},'tf-text-button');
+    const refresh=()=>{const current=this.noteDrafts.get(task.file.path);save.hidden=!current;discard.hidden=!current;save.disabled=!!current?.saving;discard.disabled=!!current?.saving;status.setText(current?.saving?'Wird gespeichert …':current?'Ungespeichert':'');};
+    input.oninput=()=>{
+      const current=this.noteDrafts.get(task.file.path);
+      if(!current)this.noteDrafts.set(task.file.path,{value:input.value,baseNotes:field.notes,prefix:field.prefix,initial:field.value,saving:false,error:''});
+      else{current.value=input.value;current.error='';}
+      const next=this.noteDrafts.get(task.file.path);if(next.value===next.initial)this.noteDrafts.delete(task.file.path);
+      error.hidden=true;refresh();
+    };
+    input.onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();save.click();}};
+    refresh();
   }
   async planTask(task,day){
     try{await this.plugin.change(task,meta=>{assignDay(meta,day);validatePlanning(meta);});}
@@ -451,6 +486,10 @@ class TaskFlow extends Plugin {
   async change(task,mutate,bodyFn=body=>body,expected){
     await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);const previous=meta.status;mutate(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }
+  async updateNotes(task,expectedNotes,newNotes){
+    await this.app.vault.process(task.file,raw=>{const {meta,body}=decode(raw);const updated=patchNoteBody(body,expectedNotes,newNotes);this.stamp(meta,meta.status);return encode(meta,updated);});
+    await this.scan();
+  }
   async saveTask(task,meta,body){
     validatePlanning(meta);
     if(task){await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen; deine Eingabe bleibt hier erhalten.');this.stamp(meta,decode(raw).meta.status);return encode(meta,body);});}
@@ -459,4 +498,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody};

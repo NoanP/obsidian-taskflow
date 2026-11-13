@@ -52,6 +52,14 @@ Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezi
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
+## Notiz direkt auf der Karte ab 0.5.0
+
+Unter der Terminanzeige steht auf jeder Karte ein mehrzeiliges **Notiz**-Textfeld. Das gilt auch für die Karten im Tagesplaner. Vorhandene Notizen werden angezeigt; leere Felder zeigen „Notiz zur Aufgabe …“.
+
+Nach dem Bearbeiten erscheinen **Speichern** und **Verwerfen**. Cmd/Ctrl+Enter speichert ebenfalls. Es gibt keine automatische Speicherung beim Tippen. Ungespeicherte Entwürfe bleiben bei Aktualisierungen, Statuswechseln und Wechseln zwischen Board und Tagesplaner innerhalb derselben geöffneten TaskFlow-Ansicht erhalten. Vor dem Schließen oder Neuladen der Ansicht bitte speichern.
+
+Teilaufgaben werden separat behandelt und nicht im Notizfeld angezeigt. Beim Speichern bleiben der aktuelle Checkbox-Stand und alle anderen Aufgabenfelder erhalten. Wenn die Notiz zwischenzeitlich anderswo bearbeitet wurde, wird das Speichern abgebrochen und der eigene Entwurf bleibt im Textfeld. Eine führende Standardüberschrift „## Notizen“ wird nur für die Anzeige ausgeblendet; Markdown und Links können weiterhin als Text bearbeitet werden.
+
 ## Aufgabeneditor und Teilaufgaben ab 0.4.0
 
 Der Editor trennt Titel, Status, Priorität, Fälligkeit, Tags, optionale Tagesplanung, Notizen und Teilaufgaben. Teilaufgaben brauchen keinen Markdown-Code: **+ Teilaufgabe** fügt eine Zeile hinzu, Enter die nächste. Jede Zeile hat Checkbox und Entfernen-Button. Leere Zeilen müssen vor dem Speichern ausgefüllt oder entfernt werden. Mit Cmd/Ctrl+Enter wird gespeichert.

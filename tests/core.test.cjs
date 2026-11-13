@@ -132,3 +132,17 @@ test('textarea newline normalization does not relocate existing checklist items'
  const original='Vorher\r\n- [X] Schritt\r\nNachher\r\n';const parsed=core.editorSubtasks(original);
  assert.equal(core.editorBody(original,parsed.notes.replace(/\r\n/g,'\n'),parsed.items),original);
 });
+test('card note field omits conventional heading and separate checklist',()=>{
+ const field=core.noteField('## Notizen\n\nMeine Notiz\n\n## Teilaufgaben\n\n- [ ] A\n');
+ assert.equal(field.value,'Meine Notiz');assert.equal(field.prefix,'## Notizen\n\n');assert.ok(!field.value.includes('- [ ]'));
+});
+test('inline note save keeps the latest checkbox state and unknown metadata',async()=>{
+ const p=new Plugin();const initial='## Notizen\n\nAlt\n\n- [ ] A\n';let raw=core.encode({taskflow:1,title:'Task',status:'done',custom:42,completed:'2026-11-01T12:00:00Z'},initial.replace('[ ]','[x]'));
+ p.app={vault:{process:async(file,fn)=>{raw=fn(raw)}}};p.scan=async()=>{};
+ await p.updateNotes({file:{}},core.noteField(initial).notes,'## Notizen\n\nNeu');
+ const saved=core.decode(raw);assert.ok(saved.body.includes('Neu'));assert.ok(saved.body.includes('- [x] A'));assert.equal(saved.meta.custom,42);assert.equal(saved.meta.completed,'2026-11-01T12:00:00Z');
+});
+test('inline note save rejects a concurrent note edit',()=>{
+ const original='Alte Notiz\n- [ ] A\n',current='Andere Notiz\n- [x] A\n';
+ assert.throws(()=>core.patchNoteBody(current,core.noteField(original).notes,'Mein Entwurf'),/zwischenzeitlich/);
+});
