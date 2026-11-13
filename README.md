@@ -2,6 +2,32 @@
 
 Ein lokales Aufgabenboard mit Dashboard, Statistik, Tags, Fälligkeit, Priorität, Notizen und Teilaufgaben. Oberfläche auf Deutsch. Aufgaben sind normale Markdown-Dateien in `TaskFlow/Aufgaben`. Keine Anmeldung, kein eigener Server, keine Telemetrie.
 
+## Gespeicherte Filter und Serienbearbeitung ab 0.11.0
+
+### Filterfavoriten
+
+1. Suche und gewünschte Filter einstellen, **Filter → Filter speichern** wählen und einen eindeutigen Namen vergeben.
+2. Der Favorit erscheint links unter **Gespeicherte Filter**. Ein Klick ruft Suche, Tag, Status, Priorität und Fälligkeit gemeinsam auf, auch im Kalender oder in der Statistik.
+3. Den Favoriten anwenden und den Filterbereich öffnen: Dort kannst du ihn **Umbenennen** oder den **Gespeicherten Filter löschen**. Löschen entfernt nur den Favoriten, keine Todos; die aktuelle Auswahl bleibt stehen.
+
+Favoriten überleben das Schließen des TaskFlow-Tabs und Neustarts. Sie liegen mit den übrigen Plugin-Einstellungen lokal in `data.json`, nicht im Repository. Ob diese Einstellungen zwischen Geräten synchronisiert werden, hängt von deiner Obsidian-Synchronisierung ab. Die aktuelle Auswahl startet nach Neuladen weiterhin ungefiltert; gespeicherte Favoriten stehen zum Anklicken bereit. Änderungen an einer angewendeten Auswahl überschreiben keinen Favoriten automatisch. Mit einem neuen Namen lässt sich daraus ein weiterer Favorit speichern.
+
+### Serientermine bearbeiten
+
+Klicke den Titel eines Serientermins auf dem Board oder im Kalender an. Oben wählst du den Umfang:
+
+- **Nur diesen Termin:** Titel, Notizen, Teilaufgaben, Tags, Priorität und Planung ändern nur diesen Termin. Das gilt auch für den ursprünglichen ersten Termin; dessen bisherige Vorlage wird für die übrige Serie bewahrt.
+- **Diesen und folgende Termine:** Ändere die Inhalte und im eingeblendeten Serienbereich Rhythmus, ersten Termin, Uhrzeit, Dauer oder Enddatum. Die bisherigen offenen Folgetermine werden angepasst, soweit sie zur neuen Terminfolge passen. Die Grenze ist der ursprüngliche Serientermin, auch wenn dieser zuvor auf einen anderen Tag verschoben wurde. Die Datums-/Uhrzeitfelder im Serienbereich bestimmen hier Planung und Fälligkeit. Bei monatlichen Serien hält das Feld „Monatstag“ etwa den 31. auch nach einer Aufteilung im Februar fest; kürzere Monate nutzen ihren letzten Tag.
+- **Diesen Termin überspringen:** Archiviert nur diesen Termin, setzt ihn nicht auf erledigt und beendet die Serie nicht. Im Archiv kannst du ihn über **Wiederherstellen** zurückholen. Nicht gespeicherte Editoreingaben werden beim Überspringen verworfen.
+
+Abgeschlossene, archivierte, übersprungene und individuell geänderte **Folgetermine** bleiben bei einer Serienänderung unverändert. Der ausdrücklich ausgewählte Termin wird gemäß deiner Eingabe gespeichert. Der Status gilt nur für diesen gewählten Termin. Bei übernommenen Teilaufgaben bleiben bereits erledigte Schritte mit gleichem Text erhalten. Direktes Ändern von Notizen, Priorität oder Planung an einer Karte wird ebenfalls als individuelle Ausnahme geschützt. Reine Status- oder Checkboxwechsel machen einen Termin nicht zur Inhaltsausnahme.
+
+Nicht mehr zum neuen Rhythmus passende offene Termine werden als **Ersetzter Serientermin** archiviert; Notizen und andere Daten bleiben in den ursprünglichen Dateien. Neue Termine entstehen innerhalb des bestehenden Fensters (90 Tage voraus, bis zu 30 Tage rückwirkend). Mit **Serie ab hier beenden** bleibt der gewählte Termin erhalten; nachfolgende offene, nicht geschützte Termine werden archiviert. Bei Änderung ab einem Folgetermin entsteht ein neuer Serienabschnitt; der frühere Abschnitt endet davor. Gelöschte oder individuell veränderte Vorlagen anderer Abschnitte werden nicht automatisch rekonstruiert.
+
+Die Speicherung prüft Dateistände vor und während der Mehrdateiänderung. Bei Konflikten wird abgebrochen und es werden nach Möglichkeit nur die eigenen bereits geschriebenen Änderungen zurückgenommen. Zwischenzeitlich fremd bearbeitete Dateien werden nicht überschrieben; ein unvollständiger Rücknahmevorgang wird ausdrücklich gemeldet. Serienfelder `recurrence.revision`, `recurrence.skipped`, `recurrenceRevision`, `recurrenceException`, `recurrenceTemplate`, `recurrenceSkipped` und `recurrenceSuperseded` ergänzen die bisherigen Metadaten. Bestehende Serien benötigen keine manuelle Migration. Nach Nutzung dieser Funktionen sollte nicht auf eine ältere Plugin-Version zurückgewechselt werden, da diese die neuen Regeln nicht vollständig kennt.
+
+Speichern, Umbenennen, erneutes Öffnen und Löschen eines Filterfavoriten sowie Einzeländerung, neue Serienzeit, Kalenderübernahme und Überspringen wurden in einer lokalen Vorschau mit Beispieldaten bedient. Insgesamt 65 automatisierte Prüfungen umfassen außerdem Konflikte, Rücknahme bei Schreibfehlern, geschützte Termine, Rhythmuswechsel und wiederholte Serienaufteilung. Die Vorschau simuliert die Obsidian-Host-API; mobile Geräte wurden nicht separat getestet.
+
 ## Suche und Filter ab 0.10.0
 
 Das Suchfeld über dem Board durchsucht Titel, Notizen, Teilaufgaben, Tags sowie Fälligkeits- und Planungsdaten. Mehrere Wörter müssen alle vorkommen, können aber in unterschiedlichen Feldern stehen. Zum Beispiel findet `meeting agenda` ein Meeting mit Agenda in der Notiz. Groß-/Kleinschreibung und Akzente sind unerheblich; `uberprufung` findet „Überprüfung“, `strasse` findet „Straße“. Mit `#arbeit` suchst du auch nach einem Tag im Suchtext.
@@ -37,7 +63,7 @@ Für Updates in BRAT die automatische Prüfung aktivieren oder **Check for updat
 
 - **Neue Aufgabe:** Titel, Status, Tags mit Kommas, Fälligkeit und Priorität eintragen.
 - Notizen sind Markdown. Mit **+ Teilaufgabe** eine eigene Eingabezeile ergänzen; Enter fügt die nächste Zeile hinzu. Alternativ sind Markdown-Checkboxen `- [ ] Text` in der Datei weiterhin möglich.
-- Karten durch Ziehen oder mit der Statusauswahl verschieben. Kartentitel öffnet den neuen Editor. **Teilaufgaben · x/y** klappt die Checkliste direkt auf der Karte auf und zu; **Notiz öffnen** das Markdown-Dokument mit Obsidian-Vorschau und Wiki-Links.
+- Karten durch Ziehen oder mit der Statusauswahl verschieben. Kartentitel öffnet den neuen Editor. **Teilaufgaben · x/y** klappt die Checkliste direkt auf der Karte auf und zu; **In Obsidian öffnen** öffnet das Markdown-Dokument mit Obsidian-Vorschau und Wiki-Links.
 - **Verzögert** setzt du selbst, z. B. bei einer Blockade. **Überfällig** bedeutet: Fälligkeit vor dem heutigen lokalen Datum und noch nicht erledigt. Das ist eine zusätzliche Markierung und verschiebt keine Karten.
 - Suche durchsucht Titel, Notiz und Tags. Tagfilter und Suche gelten auch für die Statistik. Die Zahlen oben zeigen alle aktiven bzw. archivierten Aufgaben.
 - Statistik zeigt den aktuellen Stand und Aufgaben, die in den letzten 14 Tagen erledigt wurden. Wieder geöffnete Aufgaben verlieren das Abschlussdatum; erneutes Erledigen setzt es neu. Es ist keine Ereignishistorie aller Statuswechsel.
@@ -46,7 +72,7 @@ Für Updates in BRAT die automatische Prüfung aktivieren oder **Check for updat
 
 ## Gestaltung und Bewegungen ab 0.2.0
 
-Die Arbeitszentrale übernimmt ab 0.3.0 die nativen Hintergrund-, Text- und Rahmenfarben deines Obsidian-Themes. **Puderblau & Apricot** bleiben als dezente Akzente erhalten. Die feste Maximalbreite und die separate Fenster-Kopfzeile entfallen. Die Seitenleiste enthält Board, Statistik, Archiv und die tatsächlich vorhandenen Tags. „Heute im Fokus“ zeigt die ersten beiden heute fälligen aktiven Aufgaben; es sind keine künstlichen Beispieldaten hinterlegt.
+Die Arbeitszentrale übernimmt ab 0.3.0 die nativen Hintergrund-, Text- und Rahmenfarben deines Obsidian-Themes. Die frühere Palette **Puderblau & Apricot** galt bis 0.8.0; seit 0.9.0 gilt der graue Look mit Status- und Prioritätsfarben oben. Die feste Maximalbreite und die separate Fenster-Kopfzeile entfallen. Die Seitenleiste enthält Board, Statistik, Archiv und die tatsächlich vorhandenen Tags. „Heute im Fokus“ zeigt die ersten beiden heute fälligen aktiven Aufgaben; es sind keine künstlichen Beispieldaten hinterlegt.
 
 Farben bleiben unabhängig erkennbar:
 
@@ -81,7 +107,7 @@ Beispiel: „Teammeeting“, wöchentlich, Intervall 1, erster Termin an einem M
 
 TaskFlow erzeugt beim Öffnen und danach bei den regulären Scans (etwa minütlich) fehlende Termine für **90 Tage im Voraus** und **bis zu 30 Tage rückwirkend**. Obsidian muss dafür laufen; nach dem nächsten Start wird das Fenster nachgeführt. Termine außerhalb des Fensters werden noch nicht als Dateien angelegt. Es gibt keine Hintergrund-App und keine Erinnerungsbenachrichtigungen. Alle Daten bleiben im Vault.
 
-Die ursprüngliche Aufgabe ist gleichzeitig die Serienvorlage und trägt den Rhythmus als Hinweis auf ihrer Karte. Öffne sie zum Ändern der Serie. **Keine Wiederholung** pausiert die weitere Erzeugung. Bereits erstellte Termine bleiben erhalten und werden durch Serienänderungen nicht nachträglich verändert; Änderungen gelten für noch nicht erzeugte Termine. Das Erledigen oder Archivieren eines einzelnen Termins, auch des ersten, beendet die Serie nicht. Wird die ursprüngliche Serienaufgabe gelöscht, entstehen keine weiteren Termine. Ein gelöschter Folgetermin innerhalb des Fensters wird erneut erstellt; archiviere ihn, wenn er ausgelassen werden soll.
+Die ursprüngliche Aufgabe enthält die Serienregel. Seit 0.11.0 lässt sich der Bearbeitungsumfang für jeden Termin im Editor wählen; die Einzelheiten stehen im Abschnitt zur Serienbearbeitung oben. Das Erledigen oder Archivieren eines einzelnen Termins, auch des ersten, beendet die Serie nicht. Wird eine Serienvorlage gelöscht, entstehen aus diesem Abschnitt keine weiteren Termine. Ein gelöschter Folgetermin innerhalb des Erstellungsfensters wird erneut erstellt; zum Auslassen stattdessen **Diesen Termin überspringen** verwenden.
 
 Das Anlegen einer wöchentlichen Serie mit Uhrzeit, Notizen und Teilaufgabe sowie der automatisch erstellte Kalenderblock in der Folgewoche wurden in der lokalen Vorschau mit Beispieldaten bedient. Die Vorschau simuliert die Obsidian-Host-API; mobile Geräte wurden nicht separat getestet.
 

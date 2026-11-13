@@ -4,6 +4,24 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-13
+
+### Added
+- Benannte Filterfavoriten: Suche und Filterkombination speichern, über die Seitenleiste wieder aufrufen, umbenennen und gezielt löschen.
+- Lokale dauerhafte Speicherung der Favoriten in den Plugin-Einstellungen; doppelte Namen und fehlgeschlagene Speichervorgänge werden abgefangen.
+- Bearbeitungsumfang für Serientermine: „Nur diesen Termin“ oder „Diesen und folgende Termine“.
+- Serienänderungen an Titel, Notizen, Teilaufgaben, Tags, Priorität, Rhythmus, Datum, Uhrzeit, Dauer und Enddatum wirken auf offene, nicht individuell geschützte Folgetermine.
+- Einzeltermin überspringen: ins Archiv nehmen, ohne ihn als erledigt zu zählen; über Wiederherstellen rückgängig machen.
+
+### Changed
+- Individuelle Änderungen an Serienvorlage oder Folgeterminen bleiben bei späteren Serienänderungen erhalten; Einzeländerungen an der ursprünglichen Aufgabe verändern ihre zukünftige Vorlage nicht mehr.
+- Änderungen ab einem Folgetermin teilen die Serie am ursprünglichen Termin. Nicht mehr passende offene Termine bleiben als ersetzte Serientermine im Archiv; abgeschlossene, archivierte, übersprungene und individuell geänderte Folgetermine werden nicht überschrieben.
+- Erhaltene Teilaufgaben behalten ihren erledigten Zustand anhand ihres Texts; Statusänderungen gelten nur für den gewählten Termin, nicht pauschal für alle Folgetermine.
+- Monatliche Serien behalten ihren ursprünglichen Monatstag auch nach Aufteilung an einem gekürzten Monatsende.
+- Generationskennungen und begrenzte Dateinamen verhindern doppelte oder zu lange Pfade nach wiederholter Serienbearbeitung.
+- Serienänderungen prüfen betroffene Dateistände, unterbrechen die automatische Erzeugung vorübergehend und versuchen eigene Teiländerungen bei Fehlern zurückzunehmen, ohne fremde Änderungen zu überschreiben.
+- Suchänderungen aktualisieren die Favoritenmarkierung; weiterhin keine externen Bibliotheken oder Übertragung von Aufgabendaten.
+
 ## [0.10.0] - 2026-11-13
 
 ### Added

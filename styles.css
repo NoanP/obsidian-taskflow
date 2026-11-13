@@ -423,3 +423,5 @@
 .tf-filter-info{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--tf-quiet);margin-bottom:18px;min-height:28px}.tf-filter-empty{padding:22px 0;color:var(--tf-quiet);font-size:13px}.tf-root .tf-filter-info button{font-size:12px}
 @container taskflow (max-width:800px){.tf-filters{flex-basis:100%}.tf-filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.tf-root input.tf-search{width:100%;justify-self:stretch}}
 @media(pointer:coarse){.tf-root button.tf-filter-toggle{min-height:44px}.tf-root input.tf-search,.tf-root .tf-filter-fields select{font-size:16px}}
+.tf-preset-actions{grid-column:1/-1;display:flex;gap:16px;flex-wrap:wrap;align-items:center}.tf-preset-dialog{padding:28px}.tf-preset-dialog form{margin-top:20px}.tf-preset-dialog .tf-form-error{margin-top:12px}.tf-editor-modal .tf-recurrence[hidden]{display:none!important}.tf-editor-footer{align-items:center}.tf-editor-footer button{white-space:normal}
+.tf-editor-modal [hidden]{display:none!important}

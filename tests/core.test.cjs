@@ -4,7 +4,7 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 // The Obsidian YAML adapter is mocked with JSON (a YAML subset).
 // Storage transformations are tested independently of the host parser.
-const sandbox={module:{exports:{}},console,Date,structuredClone,require:()=>({Plugin:class{},ItemView:class{},Modal:class{},PluginSettingTab:class{},parseYaml:JSON.parse,stringifyYaml:JSON.stringify,normalizePath:s=>s,Notice:class{}})};
+const sandbox={module:{exports:{}},console,Date,structuredClone,crypto:require('node:crypto').webcrypto,require:()=>({Plugin:class{},ItemView:class{},Modal:class{},PluginSettingTab:class{},parseYaml:JSON.parse,stringifyYaml:JSON.stringify,normalizePath:s=>s,Notice:class{}})};
 vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../main.js'),'utf8'),sandbox);
 const Plugin=sandbox.module.exports, core=Plugin.testing;
 const task=(status,due)=>({meta:{taskflow:1,title:'Test',status,due},body:''});
@@ -223,7 +223,7 @@ test('occurrences reset status and subtasks but retain notes, tags and custom me
 });
 test('recurrence generation is idempotent across concurrent scans, renames and completions',async()=>{
  const p=new Plugin();p.settings={folder:'Tasks'};const files=new Map();let writes=0;
- p.app={vault:{getAbstractFileByPath:path=>files.has(path),create:async(path,raw)=>{assert.ok(!files.has(path));writes++;files.set(path,raw)}}};
+ p.app={vault:{getAbstractFileByPath:path=>files.has(path)?{path}:null,read:async file=>files.get(file.path),create:async(path,raw)=>{assert.ok(!files.has(path));writes++;files.set(path,raw)}}};
  const source={file:{path:'Tasks/source.md'},meta:{taskflow:1,id:'source',title:'Meeting',status:'done',recurrence:{frequency:'weekly',interval:1,start:'2026-11-13',time:'09:00',until:'2026-12-04'}},body:'Notes\n- [x] A\n'};
  const counts=await Promise.all([p.ensureRecurrences([source],'2026-11-13'),p.ensureRecurrences([source],'2026-11-13')]);assert.equal(writes,3);assert.equal(counts[0],3);assert.equal(counts[1],3);
  assert.equal(await p.ensureRecurrences([source],'2026-11-13'),0);assert.equal(writes,3);
@@ -283,4 +283,76 @@ test('search cache reuses immutable scan objects and new scans use refreshed con
  assert.equal(core.filterTasks([item],{query:'Notiz'},'2026-11-13',cache).length,1);
  const updated={...item,meta:{...item.meta,title:'Geändert'}};assert.equal(core.filterTasks([updated],{query:'Original'},'2026-11-13',cache).length,0);assert.equal(core.filterTasks([updated],{query:'geandert'},'2026-11-13',cache).length,1);
  assert.equal(core.filterTasks([item],{priority:'normal'}).length,1);
+});
+function seriesFixture(base='2026-11-13'){
+ const source={file:{path:'Tasks/series.md'},meta:{taskflow:1,id:'series',title:'Meeting',status:'open',priority:'normal',tags:['team'],due:base,scheduled:base,scheduledTime:'09:00',durationMinutes:30,recurrence:{frequency:'weekly',interval:1,start:base,time:'09:00',durationMinutes:30,until:core.shiftDay(base,35)}},body:'Template\n- [ ] Agenda\n'};
+ const tasks=[source];for(const offset of [7,14,21,28,35]){const day=core.shiftDay(base,offset),child=core.recurrenceOccurrence(source,day);tasks.push({file:{path:'Tasks/'+child.meta.id+'.md'},...child});}
+ for(const item of tasks)item.raw=core.encode(item.meta,item.body);return tasks;
+}
+function memoryPlugin(items){
+ const p=new Plugin();p.settings={folder:'Tasks',customSetting:42};p.tasks=items;p.scanVersion=0;const files=new Map(items.map(t=>[t.file.path,t.raw]));
+ p.app={vault:{getMarkdownFiles:()=>[...files.keys()].map(path=>({path})),read:async f=>files.get(f.path),process:async(f,fn)=>{files.set(f.path,fn(files.get(f.path)))},getAbstractFileByPath:path=>files.has(path),create:async(path,raw)=>{if(files.has(path))throw new Error('exists');files.set(path,raw)}},workspace:{getLeavesOfType:()=>[]}};
+ return {p,files};
+}
+test('saved filter names and payloads are validated and normalized',()=>{
+ assert.equal(core.filterName('  Arbeit  ',[]),'Arbeit');assert.throws(()=>core.filterName(' ',[]));assert.throws(()=>core.filterName('a'.repeat(81),[]));assert.throws(()=>core.filterName('Arbeit',[{id:'a',name:'arbeit'}]));assert.equal(core.filterName('Arbeit',[{id:'a',name:'arbeit'}],'a'),'Arbeit');
+ const f=core.filterSnapshot({query:'test',tag:'work',status:'constructor',priority:'high',due:'today',unknown:42});assert.equal(f.status,'');assert.equal(f.priority,'high');assert.equal(f.unknown,undefined);assert.equal(core.savedFilters({savedFilters:[null,{}, {id:'a',name:'Arbeit',filters:{status:'open'}}]}).length,1);
+});
+test('saved filters survive serialization, rename, delete and concurrent saves without losing settings',async()=>{
+ const {p}=memoryPlugin([]);let stored;p.saveData=async next=>{stored=JSON.parse(JSON.stringify(next))};
+ const ids=await Promise.all([p.storeFilter('Arbeit',{status:'open',tag:'work'}),p.storeFilter('Heute',{due:'today'})]);assert.equal(p.settings.savedFilters.length,2);assert.equal(stored.customSetting,42);
+ await p.storeFilter('Büro',null,ids[0]);assert.equal(p.settings.savedFilters[0].filters.tag,'work');assert.equal(p.settings.savedFilters[0].name,'Büro');
+ const reload=JSON.parse(JSON.stringify(stored));assert.equal(core.savedFilters(reload)[1].filters.due,'today');await p.deleteFilter(ids[0]);assert.equal(p.settings.savedFilters.length,1);
+ p.saveData=async()=>{throw new Error('disk full')};await assert.rejects(()=>p.storeFilter('Fehler',{status:'open'}),/disk full/);assert.equal(p.settings.savedFilters.length,1);
+});
+test('single source edit preserves the future template and single child edits become exceptions',async()=>{
+ const tasks=seriesFixture(),{p,files}=memoryPlugin(tasks);p.scan=async()=>{};
+ await p.saveScopedTask(tasks[0],{...tasks[0].meta,title:'Only this'},'Personal notes\n- [x] Agenda\n','single');const saved=core.decode(files.get(tasks[0].file.path));
+ assert.equal(saved.meta.title,'Only this');const next=core.recurrenceOccurrence(saved,'2026-11-20');assert.equal(next.meta.title,'Meeting');assert.equal(next.body,'Template\n- [ ] Agenda\n');assert.equal(next.meta.recurrenceTemplate,undefined);
+ await p.saveScopedTask(tasks[1],{...tasks[1].meta,title:'One exception'},'Own notes','single');assert.equal(core.decode(files.get(tasks[1].file.path)).meta.recurrenceException,true);
+});
+test('future series edits split the rule and preserve completed, skipped and individual exceptions',()=>{
+ const tasks=seriesFixture(),selected=tasks[1];tasks[2].meta.status='progress';tasks[2].meta.custom=42;tasks[2].body='Template\n- [x] Agenda\n';tasks[3].meta.status='done';tasks[4].meta.recurrenceException=true;tasks[5].meta.archived=true;tasks[5].meta.recurrenceSkipped=true;
+ const rule={...tasks[0].meta.recurrence,start:'2026-11-20',time:'10:00',durationMinutes:45};const data={...selected.meta,title:'New meeting',scheduledTime:'10:00',durationMinutes:45};
+ const changes=core.seriesPlan(tasks,selected,data,'New notes\n- [ ] Agenda\n',rule,'revision','2026-11-13');assert.equal(changes.length,3);
+ const source=changes.find(c=>c.task===tasks[0]),next=changes.find(c=>c.task===selected),future=changes.find(c=>c.task===tasks[2]);assert.equal(source.meta.recurrence.until,'2026-11-19');assert.equal(next.meta.recurrenceSeries,undefined);assert.equal(next.meta.recurrence.revision,'revision');assert.equal(next.meta.id,selected.meta.id);assert.equal(next.meta.recurrence.skipped.length,3);
+ assert.equal(future.meta.status,'progress');assert.equal(future.meta.custom,42);assert.equal(future.meta.title,'New meeting');assert.equal(future.meta.scheduledTime,'10:00');assert.ok(future.body.includes('- [x] Agenda'));assert.ok(future.body.startsWith('New notes'));
+});
+test('changed cadence retires unmatched pending instances and uses a new generation revision',()=>{
+ const tasks=seriesFixture(),rule={...tasks[0].meta.recurrence,interval:2};const changes=core.seriesPlan(tasks,tasks[0],tasks[0].meta,tasks[0].body,rule,'new','2026-11-13');
+ assert.equal(changes.filter(c=>c.meta.recurrenceSuperseded).length,3);const retained=changes.find(c=>c.task===tasks[2]);assert.equal(retained.meta.recurrenceRevision,'new');assert.equal(retained.meta.archived,undefined);
+ const source=changes.find(c=>c.task===tasks[0]);const occurrence=core.recurrenceOccurrence(source,'2026-11-27');assert.ok(occurrence.meta.id.includes('--new--'));assert.notEqual(core.recurrenceKey(occurrence.meta),core.recurrenceKey(tasks[2].meta));
+});
+test('skipping source or child preserves recurrence and never fabricates a completion',async()=>{
+ const tasks=seriesFixture(),{p,files}=memoryPlugin(tasks);p.scan=async()=>{};
+ for(const task of [tasks[0],tasks[1]]){await p.skipOccurrence(task);const saved=core.decode(files.get(task.file.path));assert.equal(saved.meta.archived,true);assert.equal(saved.meta.recurrenceSkipped,true);assert.equal(saved.meta.completed,undefined);assert.equal(saved.meta.status,'open');}
+ const source=core.decode(files.get(tasks[0].file.path));assert.equal(source.meta.recurrence.enabled,undefined);assert.equal(core.recurrenceOccurrence(source,'2026-11-27').meta.recurrenceSkipped,undefined);
+});
+test('future edit rolls back previously written files on a later failure',async()=>{
+ const tasks=seriesFixture(core.today()),{p,files}=memoryPlugin(tasks),before=new Map(files);p.scan=async()=>{};const process=p.app.vault.process;let writes=0;p.app.vault.process=async(f,fn)=>{writes++;if(writes===2)throw new Error('simulated disk error');return process(f,fn)};
+ await assert.rejects(()=>p.saveScopedTask(tasks[1],{...tasks[1].meta,title:'New'},'New notes','future',{...tasks[0].meta.recurrence,start:core.shiftDay(core.today(),7)}),/disk error/);for(const [path,raw]of before)assert.equal(files.get(path),raw);assert.equal(p.seriesEditing,false);
+});
+test('future edit rejects stale editor source and leaves every file unchanged',async()=>{
+ const tasks=seriesFixture(core.today()),{p,files}=memoryPlugin(tasks);p.scan=async()=>{};files.set(tasks[0].file.path,core.encode({...tasks[0].meta,title:'External edit'},tasks[0].body));const before=new Map(files);
+ await assert.rejects(()=>p.saveScopedTask(tasks[1],tasks[1].meta,tasks[1].body,'future',{...tasks[0].meta.recurrence,start:core.shiftDay(core.today(),7)},tasks[0]),/Serie wurde zwischenzeitlich/);for(const [path,raw]of before)assert.equal(files.get(path),raw);
+});
+test('full future edit and subsequent scans generate exactly one occurrence per new date',async()=>{
+ const tasks=seriesFixture(core.today()),{p,files}=memoryPlugin(tasks),rule={...tasks[0].meta.recurrence,interval:2,time:'10:00'};
+ await p.saveScopedTask(tasks[0],{...tasks[0].meta,title:'Updated',scheduledTime:'10:00'},'Updated notes','future',rule,tasks[0]);const size=files.size;await p.scan();assert.equal(files.size,size);
+ const active=p.tasks.filter(t=>!t.meta.archived),dates=active.map(t=>t.meta.scheduled);assert.equal(active.length,3);assert.equal(new Set(dates).size,3);assert.ok(active.every(t=>t.meta.title==='Updated'));
+});
+test('ending a series retires pending future occurrences while retaining completed history',()=>{
+ const tasks=seriesFixture();tasks[3].meta.status='done';const rule={...tasks[0].meta.recurrence,enabled:false,start:'2026-11-20'};
+ const changes=core.seriesPlan(tasks,tasks[1],tasks[1].meta,tasks[1].body,rule,'stop','2026-11-13');assert.equal(changes.filter(c=>c.meta.recurrenceSuperseded).length,3);assert.ok(!changes.some(c=>c.task===tasks[3]));assert.equal(changes.find(c=>c.task===tasks[1]).meta.recurrence.enabled,false);
+});
+test('series revision identifiers cannot escape the task directory and skipped dates are validated',()=>{
+ const rule={frequency:'weekly',interval:1,start:'2026-11-13'};assert.throws(()=>core.validateRecurrence({...rule,revision:'../../outside'}));assert.throws(()=>core.validateRecurrence({...rule,skipped:['bad']}));assert.throws(()=>core.validateRecurrence({...rule,skipped:'2026-11-20'}));assert.equal(core.recurrenceDates({...rule,until:'2026-11-27',skipped:['2026-11-20']},'2026-11-13').length,1);
+});
+test('repeated series splits keep generated filenames bounded and prune obsolete skips',()=>{
+ const tasks=seriesFixture(),rule={...tasks[0].meta.recurrence,revision:'a'.repeat(36),skipped:['2026-11-20','2026-12-04']};const source={meta:{...tasks[0].meta,id:'old-'.repeat(80),recurrence:rule},body:tasks[0].body};const occurrence=core.recurrenceOccurrence(source,'2026-11-27');assert.ok(occurrence.meta.id.length<100);
+ const changes=core.seriesPlan(tasks,tasks[2],tasks[2].meta,tasks[2].body,{...rule,start:'2026-11-27'},'new','2026-11-13');const next=changes.find(c=>c.task===tasks[2]);assert.equal(JSON.stringify(next.meta.recurrence.skipped),JSON.stringify(['2026-12-04']));
+});
+test('monthly series split at a clamped February occurrence retains the original 31st',()=>{
+ const source={file:{path:'Tasks/month.md'},meta:{taskflow:1,id:'month',title:'Monthly',status:'open',priority:'normal',tags:[],scheduled:'2027-01-31',recurrence:{frequency:'monthly',interval:1,start:'2027-01-31',until:'2027-05-31'}},body:''};const selected={file:{path:'Tasks/feb.md'},...core.recurrenceOccurrence(source,'2027-02-28')};
+ const changes=core.seriesPlan([source,selected],selected,selected.meta,'',{...source.meta.recurrence,start:'2027-02-28'},'next','2027-02-28');const next=changes.find(c=>c.task===selected);assert.equal(next.meta.recurrence.monthDay,31);assert.equal(JSON.stringify(core.recurrenceDates(next.meta.recurrence,'2027-03-02')),JSON.stringify(['2027-03-31','2027-04-30','2027-05-31']));assert.throws(()=>core.validateRecurrence({...next.meta.recurrence,monthDay:32}));
 });
