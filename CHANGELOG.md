@@ -4,6 +4,15 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-13
+
+### Changed
+- Deutlich breitere Aufgabenkarten: regulär zwei Statusspalten; vier nur bei mindestens 1640 px nutzbarer Boardbreite, eine unter 780 px.
+- Mehr Innenabstand, größere Kartentitel, größere Notizfelder und besser lesbare Bedienelemente.
+- Neutrale graue Kartenflächen, passend zum Obsidian-Hintergrund, mit helleren grauen Akzenten für Tags und Kartenaktionen.
+- Prioritätsrand, Statuspunkt und Fälligkeit behalten ihre dezenten Signalfarben.
+- Tagesplaner und flexible Tagesaufgaben passen die Kartenbreite ebenfalls an ihre nutzbare Fläche an.
+
 ## [0.5.0] - 2026-11-13
 
 ### Added

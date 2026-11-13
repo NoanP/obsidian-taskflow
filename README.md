@@ -52,6 +52,14 @@ Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezi
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
+## Breitere graue Karten ab 0.5.1
+
+Die Karten nutzen neutrale, aus den Obsidian-Themefarben abgeleitete Grautöne. Tags und Bedienelemente auf den Karten erhalten hellere graue Akzente. Statuspunkt, Prioritätsrand und Fälligkeit bleiben farblich unterscheidbar; der Blatt-Hintergrund folgt weiterhin Obsidian.
+
+Die Statusspalten sind regulär in zwei breiten Spalten angeordnet. Erst ab 1640 Pixeln nutzbarer Boardbreite stehen alle vier nebeneinander; unter 780 Pixeln wird eine Spalte verwendet. Damit stehen die Karten in kleineren Fenstern nicht mehr zusammengedrängt nebeneinander. Im Tagesplaner gelten die Breiten seiner Inhaltsfläche. Titel, Innenabstände und Notizfelder sind größer. Die Abmessungen beziehen sich auf CSS-Pixel, nicht auf die Bildschirmauflösung.
+
+Helles und dunkles Zen-Theme sowie verschiedene Fensterbreiten wurden lokal mit Beispieldaten geprüft. Es gibt keine Änderungen am Datenformat.
+
 ## Notiz direkt auf der Karte ab 0.5.0
 
 Unter der Terminanzeige steht auf jeder Karte ein mehrzeiliges **Notiz**-Textfeld. Das gilt auch für die Karten im Tagesplaner. Vorhandene Notizen werden angezeigt; leere Felder zeigen „Notiz zur Aufgabe …“.
