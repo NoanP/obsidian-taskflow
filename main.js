@@ -155,6 +155,43 @@ function calendarBounds(tasks,days){
   for(const task of tasks){const minute=timeMinutes(task.meta.scheduledTime);if(!task.meta.archived&&days.includes(dateValue(task.meta.scheduled))&&minute!==null){start=Math.min(start,Math.floor(minute/60)*60);end=Math.max(end,Math.min(1440,Math.ceil((minute+durationMinutes(task.meta))/60)*60));}}
   return {start,end};
 }
+const RECURRENCES={daily:'Täglich',weekly:'Wöchentlich',monthly:'Monatlich'};
+function validateRecurrence(rule){
+  if(!rule||rule.enabled===false)return;
+  if(!Object.hasOwn(RECURRENCES,rule.frequency)||!Number.isInteger(rule.interval)||rule.interval<1||rule.interval>365)throw new Error('Bitte einen gültigen Wiederholungsrhythmus wählen (1–365).');
+  if(!validDay(rule.start)||rule.until&&(!validDay(rule.until)||rule.until<rule.start))throw new Error('Bitte gültige Seriendaten eingeben; das Ende darf nicht vor dem ersten Termin liegen.');
+  validatePlanning({scheduled:rule.start,scheduledTime:rule.time||'',durationMinutes:rule.durationMinutes});
+}
+function recurrenceDates(rule,reference=today()){
+  validateRecurrence(rule);if(!rule||rule.enabled===false)return [];
+  const lower=shiftDay(reference,-30),upper=rule.until&&rule.until<shiftDay(reference,90)?rule.until:shiftDay(reference,90);
+  if(upper<lower||rule.start>upper)return [];
+  const start=new Date(rule.start+'T12:00:00'),low=new Date(lower+'T12:00:00');
+  const step=rule.interval*(rule.frequency==='weekly'?7:1),monthly=rule.frequency==='monthly';
+  const elapsed=monthly?(low.getFullYear()-start.getFullYear())*12+low.getMonth()-start.getMonth():Math.round((Date.UTC(low.getFullYear(),low.getMonth(),low.getDate())-Date.UTC(start.getFullYear(),start.getMonth(),start.getDate()))/86400000);
+  let index=Math.max(1,Math.floor(elapsed/(monthly?rule.interval:step))-1);const result=[];
+  for(;;index++){
+    let date;
+    if(monthly){const first=new Date(start.getFullYear(),start.getMonth()+index*rule.interval,1,12);const last=new Date(first.getFullYear(),first.getMonth()+1,0,12).getDate();first.setDate(Math.min(start.getDate(),last));date=localDay(first);}
+    else date=shiftDay(rule.start,index*step);
+    if(date>upper)break;if(date>=lower)result.push(date);
+  }
+  return result;
+}
+function recurrenceOccurrence(source,day){
+  const rule=source.meta.recurrence,meta=structuredClone(source.meta);
+  delete meta.recurrence;delete meta.completed;delete meta.archived;delete meta.updated;
+  meta.id=source.meta.id+'--'+day;meta.recurrenceSeries=source.meta.id;meta.recurrenceDate=day;
+  meta.status='open';meta.due=day;meta.scheduled=day;meta.durationMinutes=rule.durationMinutes||30;
+  if(rule.time)meta.scheduledTime=rule.time;else delete meta.scheduledTime;
+  meta.created=new Date().toISOString();
+  const body=source.body.replace(/^(\s*[-*+] \[)[xX](\] )/gm,'$1 $2');
+  return {meta,body};
+}
+function recurrenceLabel(meta){
+  if(meta.recurrence)return meta.recurrence.enabled===false?'↻ Serie pausiert':'↻ '+(RECURRENCES[meta.recurrence.frequency]||'Serie')+(meta.recurrence.interval>1?' · alle '+meta.recurrence.interval:'');
+  return meta.recurrenceSeries?'↻ Serientermin':'';
+}
 function button(parent, text, action, cls='') { const b=parent.createEl('button',{text,cls}); b.addEventListener('click',action); return b; }
 function report(e) { console.error('TaskFlow',e); new Notice(`TaskFlow: ${e.message || e}`); }
 class TaskEditor extends Modal {
@@ -180,6 +217,26 @@ class TaskEditor extends Modal {
     field(planFields,'Geplant am','date',dateValue(data.scheduled),v=>{data.scheduled=v;if(!v){data.scheduledTime='';time.value='';}});
     const time=field(planFields,'Startzeit','time',data.scheduledTime||'',v=>data.scheduledTime=v);
     const duration=field(planFields,'Dauer in Minuten','number',durationMinutes(data),v=>data.durationMinutes=v===''?30:Number(v));duration.min='5';duration.max='720';duration.step='5';
+    const repeat=form.createDiv({cls:'tf-form-section tf-recurrence'});
+    if(data.recurrenceSeries){repeat.createEl('p',{text:'↻ Einzeltermin einer Serie. Änderungen gelten nur für diesen Termin. Die Serie steuerst du über die ursprüngliche Aufgabe.',cls:'tf-muted'});}
+    else{
+      const existing=data.recurrence,rule=existing?structuredClone(existing):{enabled:true,frequency:'weekly',interval:1,start:dateValue(data.scheduled)||dateValue(data.due)||today(),time:data.scheduledTime||'',durationMinutes:durationMinutes(data),until:''};
+      const label=repeat.createEl('label',{cls:'tf-form-field'});label.createSpan({text:'Wiederholen'});const select=label.createEl('select');select.setAttribute('aria-label','Wiederholen');
+      for(const [key,text]of Object.entries({none:'Keine Wiederholung',...RECURRENCES}))select.createEl('option',{value:key,text});select.value=existing&&existing.enabled!==false?rule.frequency:'none';
+      const repeatFields=repeat.createDiv({cls:'tf-recurrence-fields'});repeatFields.hidden=select.value==='none';
+      const interval=field(repeatFields,'Alle … Tage / Wochen / Monate','number',rule.interval,v=>rule.interval=Number(v));interval.min='1';interval.max='365';interval.step='1';
+      const start=field(repeatFields,'Erster Termin','date',rule.start,v=>rule.start=v);start.disabled=!!existing;
+      field(repeatFields,'Uhrzeit je Termin (optional)','time',rule.time,v=>rule.time=v);
+      const length=field(repeatFields,'Termindauer in Minuten','number',rule.durationMinutes,v=>rule.durationMinutes=Number(v));length.min='5';length.max='720';length.step='5';
+      field(repeatFields,'Letzter Termin (optional)','date',rule.until||'',v=>rule.until=v);
+      repeatFields.createEl('p',{text:'Der erste Termin bestimmt den Wochentag. Weitere Termine entstehen automatisch für die nächsten 90 Tage, jeweils als eigene Aufgabe mit Kalendereintrag. Ohne Uhrzeit stehen sie unter Flexibel. Änderungen der Serie gelten für noch nicht erstellte Termine; bereits angelegte Termine bleiben erhalten.',cls:'tf-muted'});
+      select.onchange=()=>{repeatFields.hidden=select.value==='none';};
+      this.readRecurrence=()=>{
+        if(select.value==='none'){if(existing)data.recurrence={...existing,enabled:false};else delete data.recurrence;return;}
+        rule.enabled=true;rule.frequency=select.value;validateRecurrence(rule);data.recurrence=rule;
+        if(!existing){data.due=rule.start;data.scheduled=rule.start;data.scheduledTime=rule.time||'';data.durationMinutes=rule.durationMinutes;}
+      };
+    }
     const notesSection=form.createDiv({cls:'tf-form-section'});notesSection.createEl('h3',{text:'Notizen'});
     const notes=notesSection.createEl('textarea',{cls:'tf-note-editor',placeholder:'Gedanken, Links oder weitere Details …'});notes.value=parsed.notes;notes.rows=5;notes.setAttribute('aria-label','Notizen');
     const subSection=form.createDiv({cls:'tf-form-section'}),subHeader=subSection.createDiv({cls:'tf-subtask-editor-header'});subHeader.createEl('h3',{text:'Teilaufgaben'});const count=subHeader.createSpan({cls:'tf-muted'});
@@ -205,7 +262,7 @@ class TaskEditor extends Modal {
       if(!data.title.trim()){error.setText('Bitte gib deiner Aufgabe einen Titel.');error.hidden=false;title.focus();return;}
       const blank=items.findIndex(x=>!x.text.trim()||/[\r\n]/.test(x.text));
       if(blank>=0){error.setText('Bitte fülle die leere Teilaufgabe aus oder entferne sie.');error.hidden=false;rows.querySelectorAll('input[type="text"]')[blank]?.focus();return;}
-      try{validatePlanning(data);}catch(e){error.setText(e.message);error.hidden=false;planning.open=true;return;}
+      try{this.readRecurrence?.();validatePlanning(data);}catch(e){error.setText(e.message);error.hidden=false;planning.open=true;return;}
       save.disabled=true;cancel.disabled=true;
       try{data.title=data.title.trim();await this.plugin.saveTask(this.task,data,editorBody(original,notes.value,items));this.close();}
       catch(e){error.setText(e.message||String(e));error.hidden=false;save.disabled=false;cancel.disabled=false;}
@@ -349,6 +406,7 @@ class TaskView extends ItemView {
     button(card,t.meta.title,()=>new TaskEditor(this.plugin,t).open(),'tf-title');
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
+    const repeatLabel=recurrenceLabel(t.meta);if(repeatLabel)card.createDiv({text:repeatLabel,cls:'tf-recurrence-label'});
     this.cardNote(card,t);
     const subs=subtasks(t.body);
     if(subs.length){
@@ -494,7 +552,7 @@ class TaskView extends ItemView {
     const start=timeMinutes(task.meta.scheduledTime);const time=start===null?'Flexibel':task.meta.scheduledTime+'–'+clockTime(start+durationMinutes(task.meta));
     edit.setAttribute('aria-label',task.meta.title+' bearbeiten · '+dateValue(task.meta.scheduled)+' · '+time);edit.setAttribute('title',task.meta.title+' · '+time+' · '+STATES[task.meta.status]);
     if(!compact)edit.createSpan({text:time,cls:'tf-calendar-event-time'});
-    edit.createSpan({text:task.meta.title,cls:'tf-calendar-event-title'});
+    edit.createSpan({text:task.meta.title,cls:'tf-calendar-event-title'});if(recurrenceLabel(task.meta))edit.createSpan({text:'↻',cls:'tf-calendar-event-time',attr:{title:recurrenceLabel(task.meta)}});
     if(task.calendarAutomatic)edit.createSpan({text:'Fällig',cls:'tf-calendar-event-time',attr:{title:'Automatisch am Fälligkeitstag angezeigt · noch keine feste Tagesplanung'}});return event;
   }
   renderCalendar(c,tasks){
@@ -588,15 +646,39 @@ class TaskFlow extends Plugin {
     this.registerView(VIEW,leaf=>new TaskView(leaf,this));this.addRibbonIcon('kanban-square','TaskFlow öffnen',()=>this.open());
     this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'planner',name:'Tagesplaner öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='planner';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'new',name:'Neue Aufgabe',callback:()=>new TaskEditor(this).open()});
     this.addSettingTab(new class extends PluginSettingTab{display(){this.containerEl.empty();this.containerEl.createEl('h2',{text:'TaskFlow'});this.containerEl.createEl('p',{text:'Aufgaben liegen als Markdown im Ordner '+this.plugin.settings.folder+'. Bestehende Aufgaben anderer Plugins werden nicht automatisch importiert.'});}}(this.app,this));
-    const refresh=()=>{clearTimeout(this.timer);this.timer=setTimeout(()=>this.scan(),180);};
+    const refresh=()=>{clearTimeout(this.timer);this.timer=setTimeout(()=>this.scan().catch(report),180);};
     for(const event of ['create','modify','delete','rename'])this.registerEvent(this.app.vault.on(event,refresh));
-    this.register(()=>clearTimeout(this.timer));this.registerInterval(window.setInterval(()=>this.scan(),60000));this.app.workspace.onLayoutReady(()=>this.scan());
+    this.register(()=>clearTimeout(this.timer));this.registerInterval(window.setInterval(()=>this.scan().catch(report),60000));this.app.workspace.onLayoutReady(()=>this.scan().catch(report));
   }
   async open(){let leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(!leaf){leaf=this.app.workspace.getLeaf('tab');await leaf.setViewState({type:VIEW,active:true});}this.app.workspace.revealLeaf(leaf);}
   async scan(){
     const version=++this.scanVersion;const tasks=[];let invalid=0;
     for(const file of this.app.vault.getMarkdownFiles().filter(f=>f.path.startsWith(this.settings.folder+'/'))){try{const raw=await this.app.vault.read(file);const {meta,body}=decode(raw);if(!(meta.status in STATES)||typeof meta.title!=='string'||(meta.tags!==undefined&&(!Array.isArray(meta.tags)||meta.tags.some(t=>typeof t!=='string'))))throw new Error('Ungültige Aufgabenfelder');tasks.push({file,raw,meta,body});}catch(e){invalid++;console.warn('TaskFlow überspringt',file.path,e);}}
+    if(version!==this.scanVersion)return;
+    if(await this.ensureRecurrences(tasks))return this.scan();
     if(version!==this.scanVersion)return;const signature=JSON.stringify([today(),tasks.map(t=>[t.file.path,t.raw]).sort((a,b)=>a[0].localeCompare(b[0]))]);const changed=signature!==this.scanSignature;this.scanSignature=signature;this.tasks=tasks;if(changed)for(const leaf of this.app.workspace.getLeavesOfType(VIEW))leaf.view.render();if(invalid!==this.invalidCount&&invalid)new Notice(`${invalid} Datei(en) im TaskFlow-Ordner konnten nicht gelesen werden. Details in der Entwicklerkonsole.`);this.invalidCount=invalid;
+  }
+  async ensureRecurrences(tasks,reference=today()){
+    if(this.recurrenceRun)return this.recurrenceRun;
+    this.recurrenceRun=(async()=>{
+      let created=0;const known=new Set(tasks.filter(t=>t.meta.recurrenceSeries&&t.meta.recurrenceDate).map(t=>t.meta.recurrenceSeries+'|'+dateValue(t.meta.recurrenceDate)));
+      for(const source of tasks){
+        if(!source.meta.recurrence||source.meta.recurrence.enabled===false||source.meta.recurrenceSeries)continue;
+        try{
+          if(typeof source.meta.id!=='string'||!/^[a-zA-Z0-9_-]+$/.test(source.meta.id))throw new Error('Serienaufgabe benötigt eine gültige ID. Bitte im Editor speichern.');
+          for(const day of recurrenceDates(source.meta.recurrence,reference)){
+            const key=source.meta.id+'|'+day;if(known.has(key))continue;
+            const path=normalizePath(this.settings.folder+'/'+source.meta.id+'--'+day+'.md');
+            if(this.app.vault.getAbstractFileByPath(path))continue;
+            const occurrence=recurrenceOccurrence(source,day);
+            try{await this.app.vault.create(path,encode(occurrence.meta,occurrence.body));created++;known.add(key);}
+            catch(e){if(!this.app.vault.getAbstractFileByPath(path))throw e;}
+          }
+        }catch(e){console.error('TaskFlow Serie',source.file.path,e);const message=source.file.path+': '+e.message;if(this.recurrenceError!==message){new Notice('TaskFlow Wiederholung: '+message);this.recurrenceError=message;}}
+      }
+      return created;
+    })();
+    try{return await this.recurrenceRun;}finally{this.recurrenceRun=null;}
   }
   stamp(meta,previous){meta.updated=new Date().toISOString();if(meta.status==='done'&&previous!=='done')meta.completed=meta.updated;if(meta.status!=='done')delete meta.completed;}
   async change(task,mutate,bodyFn=body=>body,expected){
@@ -607,11 +689,11 @@ class TaskFlow extends Plugin {
     await this.scan();
   }
   async saveTask(task,meta,body){
-    validatePlanning(meta);
+    validatePlanning(meta);validateRecurrence(meta.recurrence);if(meta.recurrence&&!meta.id)meta.id=crypto.randomUUID();
     if(task){await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen; deine Eingabe bleibt hier erhalten.');this.stamp(meta,decode(raw).meta.status);return encode(meta,body);});}
     else{const folder=normalizePath(this.settings.folder);let current='';for(const part of folder.split('/')){current=current?current+'/'+part:part;if(!this.app.vault.getAbstractFileByPath(current))await this.app.vault.createFolder(current);}meta.id=crypto.randomUUID();this.stamp(meta,null);await this.app.vault.create(`${folder}/${meta.id}.md`,encode(meta,body));}
     await this.scan();
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel};

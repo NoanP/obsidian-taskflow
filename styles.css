@@ -250,3 +250,6 @@
 @container taskflow (max-width:560px){.tf-calendar-scroll{max-height:580px}.tf-calendar-help{font-size:12px}.tf-calendar-header,.tf-calendar-flex-row,.tf-calendar-body{grid-template-columns:48px repeat(var(--tf-calendar-days),minmax(0,1fr))}.tf-calendar-sheet.tf-calendar-single{min-width:260px}}
 
 .tf-calendar-event,.tf-calendar-event *{user-select:none}.tf-calendar-event{touch-action:none}.tf-pool-task[draggable="false"]{touch-action:none}
+/* Recurrence controls share the editor's native gray surfaces. */
+.tf-recurrence-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.tf-recurrence-fields[hidden]{display:none}.tf-recurrence-fields>p{grid-column:1/-1;font-size:12px;line-height:1.6}.tf-recurrence-label{font-size:11px;color:var(--tf-quiet);margin:8px 0}.tf-recurrence .tf-form-field select{width:100%}
+@media(max-width:540px){.tf-recurrence-fields{grid-template-columns:1fr}}

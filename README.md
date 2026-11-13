@@ -52,6 +52,20 @@ Suche und Tagfilter gelten für alle Kennzahlen und Diagramme. Der Zeitraum bezi
 
 Die Diagramme benötigen keine externen Bibliotheken und übertragen keine Aufgaben. Helles und dunkles Zen-Theme sowie ein schmales Panel wurden in einer lokalen Vorschau mit Beispieldaten geprüft. Der native Obsidian-Abschlusstest erfolgt nach dem BRAT-Update; die Vorschau simuliert die Host-API.
 
+## Wiederkehrende Aufgaben ab 0.8.0
+
+Unter **Board → Neue Aufgabe → Wiederholen** wählst du **Täglich**, **Wöchentlich** oder **Monatlich**. Mit dem Intervall kannst du beispielsweise alle 2 Wochen einstellen. Der **erste Termin** bestimmt den Wochentag bzw. Monatstag. Ergänze optional eine Uhrzeit, die Dauer und einen letzten Termin (einschließlich).
+
+Beispiel: „Teammeeting“, wöchentlich, Intervall 1, erster Termin an einem Montag, 09:00, Dauer 45 Minuten. Der erste Termin ist die ursprüngliche Aufgabe. Weitere Termine entstehen als eigenständige Markdown-Aufgaben und stehen im Kalender jeweils montags von 09:00–09:45. Ohne Uhrzeit stehen sie unter „Flexibel“. Neue Termine starten offen, mit zurückgesetzten Teilaufgaben; Notizen, Tags, Priorität und zusätzliche Metadaten werden übernommen. Jeder Termin lässt sich unabhängig bearbeiten, verschieben, archivieren oder erledigen.
+
+TaskFlow erzeugt beim Öffnen und danach bei den regulären Scans (etwa minütlich) fehlende Termine für **90 Tage im Voraus** und **bis zu 30 Tage rückwirkend**. Obsidian muss dafür laufen; nach dem nächsten Start wird das Fenster nachgeführt. Termine außerhalb des Fensters werden noch nicht als Dateien angelegt. Es gibt keine Hintergrund-App und keine Erinnerungsbenachrichtigungen. Alle Daten bleiben im Vault.
+
+Die ursprüngliche Aufgabe ist gleichzeitig die Serienvorlage und trägt den Rhythmus als Hinweis auf ihrer Karte. Öffne sie zum Ändern der Serie. **Keine Wiederholung** pausiert die weitere Erzeugung. Bereits erstellte Termine bleiben erhalten und werden durch Serienänderungen nicht nachträglich verändert; Änderungen gelten für noch nicht erzeugte Termine. Das Erledigen oder Archivieren eines einzelnen Termins, auch des ersten, beendet die Serie nicht. Wird die ursprüngliche Serienaufgabe gelöscht, entstehen keine weiteren Termine. Ein gelöschter Folgetermin innerhalb des Fensters wird erneut erstellt; archiviere ihn, wenn er ausgelassen werden soll.
+
+Das Anlegen einer wöchentlichen Serie mit Uhrzeit, Notizen und Teilaufgabe sowie der automatisch erstellte Kalenderblock in der Folgewoche wurden in der lokalen Vorschau mit Beispieldaten bedient. Die Vorschau simuliert die Obsidian-Host-API; mobile Geräte wurden nicht separat getestet.
+
+Die Regel steht im Frontmatter der ursprünglichen Aufgabe als `recurrence` mit `frequency`, `interval`, `start`, `time`, `durationMinutes`, `until` und `enabled`. Folgeaufgaben tragen `recurrenceSeries` und `recurrenceDate`; diese Kennung bleibt auch bei Verschieben erhalten und verhindert doppelte Termine. Wiederholungen verwenden die lokale Uhrzeit, keine feste UTC-Zeitzone. Monatlich ab dem 31. wird in kürzeren Monaten der letzte Tag genutzt und danach wieder der 31. Das Anlegen und die Serienverwaltung erfolgen über TaskFlow; Aufgaben anderer Plugins werden nicht übernommen.
+
 ## Automatische Termine ab 0.7.0
 
 Aufgaben mit Status **Offen** oder **In Arbeit** und gültigem Fälligkeitsdatum erscheinen automatisch am **Fälligkeitstag** unter **Tagesplaner → Kalender → Flexibel**, mit dem Hinweis „Fällig“. Das gilt auch für bestehende Aufgaben. Überfällige Aufgaben bleiben am ursprünglichen Datum; Aufgaben ohne Termin werden nicht automatisch eingetragen. Eine manuelle Tagesplanung hat Vorrang und erzeugt keinen zweiten Eintrag. Suche und Tagfilter gelten weiterhin.
@@ -122,7 +136,7 @@ Bestehende Tasks-, TaskNotes- oder beliebige Markdown-Checkboxen werden **nicht 
 
 Obsidian Sync/OneDrive synchronisiert die Markdown-Dateien wie andere Vault-Notizen. TaskFlow erkennt Änderungen und verhindert das Überschreiben eines zwischenzeitlich bearbeiteten Dokuments durch einen alten Editor. Das ersetzt keine Backups und löst keine Konflikte zwischen Offline-Geräten. Bei einer Konfliktmeldung zuerst die eigene Eingabe sichern, dann die Aufgabe neu öffnen.
 
-Termine markieren Fälligkeit; es gibt noch keine Betriebssystem-Benachrichtigungen, Wiederholungen oder Kalender-Synchronisation. Eingebettete Dashboards und Migration vorhandener Aufgaben sind mögliche spätere Erweiterungen.
+Termine markieren Fälligkeit; es gibt noch keine Betriebssystem-Benachrichtigungen oder externe Kalender-Synchronisation. Eingebettete Dashboards und Migration vorhandener Aufgaben sind mögliche spätere Erweiterungen.
 
 ## Weiterentwicklung und Releases
 

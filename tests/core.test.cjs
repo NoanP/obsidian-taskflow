@@ -4,7 +4,7 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 // The Obsidian YAML adapter is mocked with JSON (a YAML subset).
 // Storage transformations are tested independently of the host parser.
-const sandbox={module:{exports:{}},console,Date,structuredClone,require:()=>({Plugin:class{},ItemView:class{},Modal:class{},PluginSettingTab:class{},parseYaml:JSON.parse,stringifyYaml:JSON.stringify})};
+const sandbox={module:{exports:{}},console,Date,structuredClone,require:()=>({Plugin:class{},ItemView:class{},Modal:class{},PluginSettingTab:class{},parseYaml:JSON.parse,stringifyYaml:JSON.stringify,normalizePath:s=>s,Notice:class{}})};
 vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../main.js'),'utf8'),sandbox);
 const Plugin=sandbox.module.exports, core=Plugin.testing;
 const task=(status,due)=>({meta:{taskflow:1,title:'Test',status,due},body:''});
@@ -197,4 +197,43 @@ test('completing an automatic calendar entry keeps it on its displayed day and p
  const p=new Plugin();p.app={vault:{process:async(file,fn)=>{assert.equal(file,original.file);raw=fn(raw)}}};p.scan=async()=>{};
  const view={plugin:p,contentEl:{setAttribute(){},removeAttribute(){},querySelector(){return null}}};
  await core.TaskView.prototype.setStatus.call(view,projected,'done');const saved=core.decode(raw);assert.equal(saved.meta.status,'done');assert.equal(saved.meta.scheduled,'2026-11-13');assert.equal(saved.meta.due,'2026-11-13');assert.equal(saved.meta.custom,42);assert.ok(saved.meta.completed);assert.equal(saved.body,'My notes\n- [ ] Subtask\n');assert.equal(core.calendarTasks([{file:original.file,...saved}]).length,1);
+});
+test('weekly recurrence keeps weekday and wall clock across DST and includes end date',()=>{
+ const rule={frequency:'weekly',interval:1,start:'2026-03-20',time:'09:00',durationMinutes:60,until:'2026-04-10'};
+ assert.equal(JSON.stringify(core.recurrenceDates(rule,'2026-03-20')),JSON.stringify(['2026-03-27','2026-04-03','2026-04-10']));
+ const occurrence=core.recurrenceOccurrence({meta:{id:'weekly',recurrence:rule},body:''},'2026-04-03');assert.equal(occurrence.meta.scheduledTime,'09:00');assert.equal(occurrence.meta.scheduled,'2026-04-03');assert.equal(occurrence.meta.due,'2026-04-03');
+});
+test('monthly recurrence clamps month-end without drifting from anchor',()=>{
+ const rule={frequency:'monthly',interval:1,start:'2028-01-31',durationMinutes:30,until:'2028-04-30'};
+ assert.equal(JSON.stringify(core.recurrenceDates(rule,'2028-02-01')),JSON.stringify(['2028-02-29','2028-03-31','2028-04-30']));
+ rule.interval=2;assert.equal(JSON.stringify(core.recurrenceDates(rule,'2028-02-01')),JSON.stringify(['2028-03-31']));
+});
+test('daily recurrence uses bounded catchup, inclusive horizon and original anchor',()=>{
+ const dates=core.recurrenceDates({frequency:'daily',interval:1,start:'2000-01-01'},'2026-11-13');assert.equal(dates.length,121);assert.equal(dates[0],core.shiftDay('2026-11-13',-30));assert.equal(dates.at(-1),core.shiftDay('2026-11-13',90));
+ assert.equal(core.recurrenceDates({frequency:'daily',interval:1,start:'2027-11-13'},'2026-11-13').length,0);
+ assert.equal(core.recurrenceDates({enabled:false},'2026-11-13').length,0);
+});
+test('recurrence validation rejects malformed rules and impossible times',()=>{
+ const rule={frequency:'weekly',interval:1,start:'2026-11-13'};
+ for(const change of [{frequency:'yearly'},{interval:0},{interval:1.5},{interval:366},{start:'2026-02-30'},{until:'2026-11-12'},{time:'25:00'},{time:'23:45',durationMinutes:60}])assert.throws(()=>core.validateRecurrence({...rule,...change}));
+});
+test('occurrences reset status and subtasks but retain notes, tags and custom metadata',()=>{
+ const source={meta:{id:'source',title:'Meeting',status:'done',completed:'yesterday',archived:true,tags:['work'],custom:{value:2},recurrence:{frequency:'weekly',interval:1,start:'2026-11-13',time:'10:00',durationMinutes:45}},body:'Notes\n- [x] A\n  * [X] B\n- [ ] C\n'};const before=JSON.stringify(source);
+ const occurrence=core.recurrenceOccurrence(source,'2026-11-20');assert.equal(occurrence.meta.status,'open');assert.equal(occurrence.meta.completed,undefined);assert.equal(occurrence.meta.archived,undefined);assert.equal(occurrence.meta.recurrence,undefined);assert.equal(occurrence.meta.recurrenceSeries,'source');assert.equal(occurrence.meta.recurrenceDate,'2026-11-20');assert.equal(occurrence.meta.custom.value,2);assert.equal(occurrence.meta.tags[0],'work');assert.equal(occurrence.body,'Notes\n- [ ] A\n  * [ ] B\n- [ ] C\n');assert.equal(JSON.stringify(source),before);
+});
+test('recurrence generation is idempotent across concurrent scans, renames and completions',async()=>{
+ const p=new Plugin();p.settings={folder:'Tasks'};const files=new Map();let writes=0;
+ p.app={vault:{getAbstractFileByPath:path=>files.has(path),create:async(path,raw)=>{assert.ok(!files.has(path));writes++;files.set(path,raw)}}};
+ const source={file:{path:'Tasks/source.md'},meta:{taskflow:1,id:'source',title:'Meeting',status:'done',recurrence:{frequency:'weekly',interval:1,start:'2026-11-13',time:'09:00',until:'2026-12-04'}},body:'Notes\n- [x] A\n'};
+ const counts=await Promise.all([p.ensureRecurrences([source],'2026-11-13'),p.ensureRecurrences([source],'2026-11-13')]);assert.equal(writes,3);assert.equal(counts[0],3);assert.equal(counts[1],3);
+ assert.equal(await p.ensureRecurrences([source],'2026-11-13'),0);assert.equal(writes,3);
+ const decoded=core.decode(files.get('Tasks/source--2026-11-20.md'));decoded.meta.status='done';decoded.meta.archived=true;files.delete('Tasks/source--2026-11-20.md');files.set('Tasks/renamed.md',core.encode(decoded.meta,decoded.body));
+ assert.equal(await p.ensureRecurrences([source,{file:{path:'Tasks/renamed.md'},...decoded}],'2026-11-13'),0);assert.equal(writes,3);
+ source.meta.recurrence.enabled=false;files.clear();assert.equal(await p.ensureRecurrences([source],'2026-11-13'),0);
+});
+test('scan creates dated calendar occurrences and refreshes without duplicates',async()=>{
+ const p=new Plugin();p.settings={folder:'Tasks'};p.scanVersion=0;let renders=0;const files=new Map();const now=core.today();
+ files.set('Tasks/source.md',core.encode({taskflow:1,id:'source',title:'Meeting',status:'open',scheduled:now,recurrence:{frequency:'weekly',interval:1,start:now,time:'09:00',until:core.shiftDay(now,14)}},'Notes'));
+ p.app={vault:{getMarkdownFiles:()=>[...files.keys()].map(path=>({path})),read:async file=>files.get(file.path),getAbstractFileByPath:path=>files.has(path),create:async(path,raw)=>files.set(path,raw)},workspace:{getLeavesOfType:()=>[{view:{render:()=>renders++}}]}};
+ await p.scan();assert.equal(p.tasks.length,3);assert.equal(core.calendarEvents(core.calendarTasks(p.tasks),core.shiftDay(now,7)).length,1);assert.equal(renders,1);await p.scan();assert.equal(files.size,3);assert.equal(renders,1);
 });

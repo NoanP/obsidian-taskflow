@@ -4,6 +4,20 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-13
+
+### Added
+- Option „Wiederholen“ direkt im Aufgabeneditor: täglich, wöchentlich oder monatlich, Intervall 1–365, erster Termin, optionale Uhrzeit, Dauer und Enddatum.
+- Automatische eigenständige Markdown-Aufgaben mit Planungsdatum und Fälligkeit für jede Wiederholung; dadurch erscheinen sie als flexible Einträge oder Zeitblöcke im Kalender.
+- Rollendes Erstellungsfenster: 90 Tage im Voraus und bis zu 30 Tage rückwirkend beim Öffnen bzw. minütlichen Scan.
+- Kennzeichnung von Serien und Einzelterminen auf den Karten und im Kalender; pausierbare Serie über „Keine Wiederholung“ in der ursprünglichen Aufgabe.
+
+### Changed
+- Serien laufen unabhängig vom Abschluss des ersten oder vorherigen Termins. Neue Termine starten offen und mit zurückgesetzten Teilaufgaben, übernehmen aber Notizen, Tags und Priorität.
+- Stabile Termin-IDs verhindern doppelte Erzeugung bei erneutem Scan, parallelen Scans, Neustart oder umbenannten Terminen.
+- Monatliche Termine am Monatsende werden auf den letzten Monatstag begrenzt, ohne den ursprünglichen Tag für spätere Monate zu verlieren. Uhrzeiten bleiben lokale Uhrzeiten über Zeitumstellungen hinweg.
+- Serienänderungen gelten für noch nicht erstellte Termine. Vorhandene Einzeltermine werden nicht überschrieben oder beim Pausieren gelöscht.
+
 ## [0.7.0] - 2026-11-13
 
 ### Added
