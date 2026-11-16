@@ -195,7 +195,7 @@ test('manual calendar plan overrides deadline and does not duplicate any status'
 test('completing an automatic calendar entry keeps it on its displayed day and preserves file data',async()=>{
  const original={file:{path:'task.md'},...task('progress','2026-11-13')};const projected=core.calendarTasks([original])[0];let raw=core.encode({...original.meta,custom:42},'My notes\n- [ ] Subtask\n');
  const p=new Plugin();p.app={vault:{process:async(file,fn)=>{assert.equal(file,original.file);raw=fn(raw)}}};p.scan=async()=>{};
- const view={plugin:p,contentEl:{setAttribute(){},removeAttribute(){},querySelector(){return null}}};
+ const view={plugin:p,contentEl:{setAttribute(){},removeAttribute(){},querySelector(){return null},querySelectorAll(){return []}}};
  await core.TaskView.prototype.setStatus.call(view,projected,'done');const saved=core.decode(raw);assert.equal(saved.meta.status,'done');assert.equal(saved.meta.scheduled,'2026-11-13');assert.equal(saved.meta.due,'2026-11-13');assert.equal(saved.meta.custom,42);assert.ok(saved.meta.completed);assert.equal(saved.body,'My notes\n- [ ] Subtask\n');assert.equal(core.calendarTasks([{file:original.file,...saved}]).length,1);
 });
 test('weekly recurrence keeps weekday and wall clock across DST and includes end date',()=>{
@@ -385,4 +385,12 @@ test('favorite selection from home opens board with the exact saved filter snaps
  const view=Object.create(core.TaskView.prototype);view.mode='home';view.render=()=>{};
  view.applyFilter({id:'favorite',filters:{query:'hello',tag:'work',status:'progress',priority:'high',due:'week'}});
  assert.equal(view.mode,'board');assert.equal(view.query,'hello');assert.equal(view.tag,'work');assert.equal(view.currentPreset,'favorite');assert.equal(view.statusFilter,'progress');assert.equal(view.priorityFilter,'high');assert.equal(view.dueFilter,'week');
+});
+
+test('home completion unlocks checkboxes created by the save-triggered render',async()=>{
+ const view=Object.create(core.TaskView.prototype),checks=[{disabled:true},{disabled:true}];
+ view.contentEl={setAttribute(){},removeAttribute(){},querySelector:()=>null,querySelectorAll:()=>checks};
+ view.plugin={change:async()=>{assert.ok(view.pendingPath);}};
+ await view.setStatus({file:{path:'task.md'},meta:{title:'Complete me'}},'done');
+ assert.equal(view.pendingPath,null);assert.ok(checks.every(check=>check.disabled===false));
 });

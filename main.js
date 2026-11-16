@@ -572,7 +572,7 @@ class TaskView extends ItemView {
     this.pendingPath=task.file.path;this.contentEl.setAttribute('aria-busy','true');
     try{await this.plugin.change(task.originalTask||task,m=>{if(task.calendarAutomatic&&status==='done'&&!validDay(dateValue(m.scheduled))){assignDay(m,dateValue(task.meta.scheduled));delete m.scheduledTime;}m.status=status;});this.lastMove=task.meta.title+' → '+STATES[status];const live=this.contentEl.querySelector('.tf-live');if(live)live.setText(this.lastMove);}
     catch(e){report(e);this.render();}
-    finally{this.pendingPath=null;this.contentEl.removeAttribute('aria-busy');}
+    finally{this.pendingPath=null;this.contentEl.removeAttribute('aria-busy');for(const check of this.contentEl.querySelectorAll('.tf-home-task>input[type="checkbox"]'))check.disabled=false;}
   }
   card(col,t){
     const priority=Object.hasOwn(PRIORITIES,t.meta.priority)?t.meta.priority:'normal';
