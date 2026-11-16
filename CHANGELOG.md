@@ -4,6 +4,18 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-11-16
+
+### Changed
+- Serientermine einschließlich des ersten Termins erscheinen im Kalender und auf der Startseite statt im aktiven Todo-Board. Auch bestehende Serien, Einzeltermin-Ausnahmen und beendete Serien werden anhand ihrer Herkunft erkannt.
+- Board-Zähler, Suche, Tags und Filtertreffer berücksichtigen nur die dort sichtbaren Einzelaufgaben. Filterfavoriten auf der Startseite zeigen die Trefferzahl ihres Ziel-Boards.
+- Tagesablauf, Status- und Prioritätenlisten sowie der Planungsvorrat zeigen keine Serientermine mehr. Im Kalender bleiben die einzelnen Termine interaktiv sichtbar.
+- Ein direkter Kalenderzugang im Board erklärt, wo die Serientermine zu finden sind.
+
+### Compatibility
+- Ausschließlich eine Änderung der Ansichten: keine Termine gelöscht, keine Aufgaben archiviert, keine Änderung an Wiederholungsregeln oder Termin-Erzeugung. Vorhandene Serien werden sofort berücksichtigt.
+- Archiv und statistische Auswertungen behalten die vollständige Historie einschließlich abgeschlossener und übersprungener Serientermine.
+
 ## [0.14.0] - 2026-11-16
 
 ### Added

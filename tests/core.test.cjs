@@ -394,3 +394,22 @@ test('home completion unlocks checkboxes created by the save-triggered render',a
  await view.setStatus({file:{path:'task.md'},meta:{title:'Complete me'}},'done');
  assert.equal(view.pendingPath,null);assert.ok(checks.every(check=>check.disabled===false));
 });
+
+test('active board excludes first series task, occurrences and exceptions for every status without mutation',()=>{
+ const tasks=[];for(const status of Object.keys(core.STATES)){
+  for(const [kind,extra]of Object.entries({single:{},source:{recurrence:{frequency:'weekly',start:'2026-11-16',interval:1}},occurrence:{recurrenceSeries:'series'},exception:{recurrenceSeries:'series',recurrenceException:true},stopped:{recurrence:{enabled:false}}}))tasks.push({file:{path:status+'-'+kind},meta:{title:kind,status,...extra},body:'notes'});
+ }
+ const before=JSON.stringify(tasks),visible=core.tasksForView(tasks,'board');assert.equal(visible.length,4);assert.ok(visible.every(t=>t.meta.title==='single'));assert.equal(JSON.stringify(tasks),before);assert.equal(core.summarize(visible).total,4);
+ assert.equal(core.filterTasks(visible,{query:'occurrence'}).length,0);
+});
+test('calendar and home retain series while all other active planning lists exclude them',()=>{
+ const source={file:{path:'series'},meta:{id:'series',title:'Meeting',status:'open',scheduled:'2026-11-16',scheduledTime:'09:00',durationMinutes:30,recurrence:{frequency:'weekly',interval:1,start:'2026-11-16',time:'09:00',durationMinutes:30}},body:'Agenda'};
+ const next=core.recurrenceOccurrence(source,'2026-11-23');next.file={path:'next'};const tasks=[source,next];
+ for(const mode of ['agenda','status','priority'])assert.equal(core.tasksForView(tasks,'planner',mode).length,0);
+ const calendar=core.tasksForView(tasks,'planner','calendar');assert.equal(calendar.length,2);assert.equal(core.calendarTasks(calendar).length,2);assert.equal(core.calendarEvents(calendar,'2026-11-23').length,1);
+ const home=core.homeOverview(core.tasksForView(tasks,'home'),'2026-11-16');assert.equal(home.today[0],source);assert.equal(home.upcoming[0],next);
+});
+test('archived recurrence history and statistics remain available for recovery and reporting',()=>{
+ const skipped={file:{path:'skipped'},meta:{title:'Skipped',status:'open',archived:true,recurrenceSeries:'series',recurrenceSkipped:true},body:''},done={file:{path:'done'},meta:{title:'Done',status:'done',archived:true,recurrenceSeries:'series'},body:''};
+ const tasks=[skipped,done];assert.equal(core.tasksForView(tasks,'board','agenda',true),tasks);assert.equal(core.tasksForView(tasks,'stats'),tasks);assert.equal(core.homeOverview(tasks,'2026-11-16').active,0);
+});

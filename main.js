@@ -68,6 +68,11 @@ function savedFilters(settings){return Array.isArray(settings.savedFilters)?sett
 const NAVIGATION={board:'Board',planner:'Tagesplaner',stats:'Statistik',archive:'Archiv',tags:'Tags',favorites:'Filterfavoriten'};
 function hiddenNavigation(settings){return Array.isArray(settings.hiddenNavigation)?settings.hiddenNavigation.filter(key=>Object.hasOwn(NAVIGATION,key)):[];}
 function startView(settings){return ['home','board','planner','stats'].includes(settings.startView)?settings.startView:'home';}
+function isSeriesTask(task){return !!(task.meta.recurrence||task.meta.recurrenceSeries);}
+// Keep the files and generation intact; only ordinary active task lists hide series.
+function tasksForView(tasks,mode,plannerMode='agenda',archive=false){
+  return !archive&&(mode==='board'||mode==='planner'&&plannerMode!=='calendar')?tasks.filter(task=>!isSeriesTask(task)):tasks;
+}
 // A read-only projection: neither visiting home nor choosing a section schedules tasks.
 function homeOverview(tasks,reference=today()){
   const active=tasks.filter(t=>!t.meta.archived&&t.meta.status!=='done'),end=shiftDay(reference,7);
@@ -425,7 +430,7 @@ class TaskView extends ItemView {
     const focus=active&&c.contains(active)&&active.dataset.tfFocus?{key:active.dataset.tfFocus,start:active.selectionStart,end:active.selectionEnd}:null;
     const scroll=c.scrollTop;
     c.empty();c.addClass('tf-root');
-    const all=this.plugin.tasks.filter(t=>!!t.meta.archived===this.showArchive),s=summarize(all);
+    const all=tasksForView(this.plugin.tasks.filter(t=>!!t.meta.archived===this.showArchive),this.mode,this.plannerMode,this.showArchive),s=summarize(all);
     const shell=c.createDiv({cls:'tf-shell'});
     const workspace=shell.createDiv({cls:'tf-workspace'});
     const side=workspace.createEl('nav',{cls:'tf-sidebar',attr:{'aria-label':'TaskFlow Navigation'}});
@@ -504,7 +509,8 @@ class TaskView extends ItemView {
     if(!hiddenNavigation(this.plugin.settings).includes('favorites')){
       const favorites=c.createDiv({cls:'tf-home-favorites'});favorites.createEl('h2',{text:'Filterfavoriten'});
       if(!presets.length)favorites.createSpan({text:'Speichere eine Suche im Board, um sie hier schnell zu öffnen.',cls:'tf-muted'});
-      for(const preset of presets){const count=filterTasks(tasks,preset.filters,today(),this.searchIndex).length;button(favorites,preset.name+' · '+count,()=>this.applyFilter(preset),'tf-home-favorite');}
+      const boardTasks=tasksForView(tasks,'board');
+      for(const preset of presets){const count=filterTasks(boardTasks,preset.filters,today(),this.searchIndex).length;button(favorites,preset.name+' · '+count,()=>this.applyFilter(preset),'tf-home-favorite');}
     }
     const grid=c.createDiv({cls:'tf-home-grid'});
     const sections={today:['Heute','Heute geplant oder fällig.','Für heute ist noch nichts geplant oder fällig.'],overdue:['Überfällig','Offene Aufgaben mit überschrittener Deadline.','Keine überfälligen Aufgaben.'],upcoming:['Nächste 7 Tage','Anstehende Planung und Fälligkeiten ab morgen.','Keine anstehenden Termine in den nächsten sieben Tagen.'],inbox:['Eingang','Ohne Planungsdatum; eine Deadline kann bereits gesetzt sein.','Alle offenen Aufgaben haben ein Planungsdatum.']};
@@ -533,6 +539,11 @@ class TaskView extends ItemView {
   resetFilters(){this.currentPreset='';this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.render();}
   renderResults(c,all){
     this.calendarPointerCleanup?.();c.empty();
+    all=tasksForView(all,this.mode,this.plannerMode,this.showArchive);
+    if(this.mode==='board'&&!this.showArchive&&this.plugin.tasks.some(t=>!t.meta.archived&&isSeriesTask(t))){
+      const note=c.createDiv({cls:'tf-filter-info'});note.createSpan({text:'Serientermine findest du auf der Startseite und im Kalender.'});
+      button(note,'Kalender öffnen',()=>{this.mode='planner';this.plannerMode='calendar';this.plannerDate=today();this.render();},'tf-text-button');
+    }
     const tasks=filterTasks(all,{query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter},today(),this.searchIndex);
     const active=!!(this.query.trim()||this.tag||this.statusFilter||this.priorityFilter||this.dueFilter);
     const info=c.createDiv({cls:'tf-filter-info'});
@@ -545,6 +556,7 @@ class TaskView extends ItemView {
     this.renderBoard(c,tasks);
   }
   renderBoard(c,tasks,groupBy='status'){
+    tasks=tasksForView(tasks,'board',this.plannerMode,this.showArchive);
     const board=c.createDiv({cls:'tf-board'+(groupBy==='priority'?' tf-board-priority':'')});
     for(const [status,label]of Object.entries(groupBy==='priority'?PRIORITIES:STATES)){
       const col=board.createDiv({cls:'tf-column '+(groupBy==='priority'?'tf-priority-'+status:'tf-status-'+status)});col.dataset.status=status;
@@ -637,8 +649,8 @@ class TaskView extends ItemView {
   }
   renderPlanner(c,tasks){
     const day=validDay(this.plannerDate)?this.plannerDate:today();this.plannerDate=day;
-    const displayed=this.plannerMode==='calendar'?calendarTasks(tasks):tasks;
-    const plan=dayPlan(displayed,day),plannedPaths=new Set(plan.planned.map(t=>t.file.path)),poolTasks=plan.pool.filter(t=>!plannedPaths.has(t.file.path)).map(t=>t.originalTask||t),planner=c.createDiv({cls:'tf-planner'});
+    const displayed=this.plannerMode==='calendar'?calendarTasks(tasks):tasksForView(tasks,'planner',this.plannerMode);
+    const plan=dayPlan(displayed,day),plannedPaths=new Set(plan.planned.map(t=>t.file.path)),poolTasks=plan.pool.filter(t=>!plannedPaths.has(t.file.path)&&!isSeriesTask(t)).map(t=>t.originalTask||t),planner=c.createDiv({cls:'tf-planner'});
     const controls=planner.createDiv({cls:'tf-planner-controls'});
     const previous=button(controls,'‹',()=>{this.plannerDate=shiftDay(day,this.plannerMode==='calendar'&&this.calendarSpan==='week'?-7:-1);this.render();},'tf-planner-step');previous.setAttribute('aria-label',this.plannerMode==='calendar'&&this.calendarSpan==='week'?'Vorherige Woche':'Vorheriger Tag');
     const date=controls.createEl('input',{type:'date'});date.value=day;date.setAttribute('aria-label','Planungstag');date.dataset.tfFocus='planner-date';date.onchange=()=>{if(validDay(date.value)){this.plannerDate=date.value;this.render();}};
@@ -927,4 +939,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation,isSeriesTask,tasksForView};
