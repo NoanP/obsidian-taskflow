@@ -425,3 +425,23 @@
 @media(pointer:coarse){.tf-root button.tf-filter-toggle{min-height:44px}.tf-root input.tf-search,.tf-root .tf-filter-fields select{font-size:16px}}
 .tf-preset-actions{grid-column:1/-1;display:flex;gap:16px;flex-wrap:wrap;align-items:center}.tf-preset-dialog{padding:28px}.tf-preset-dialog form{margin-top:20px}.tf-preset-dialog .tf-form-error{margin-top:12px}.tf-editor-modal .tf-recurrence[hidden]{display:none!important}.tf-editor-footer{align-items:center}.tf-editor-footer button{white-space:normal}
 .tf-editor-modal [hidden]{display:none!important}
+/* Home uses the host page background; only task status and priority carry color. */
+.tf-home-shortcuts{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.tf-home-favorites{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 0;border-top:1px solid var(--tf-line);border-bottom:1px solid var(--tf-line);margin-bottom:28px}
+.tf-root .tf-home-favorites h2,.tf-root .tf-home-heading h2{margin:0;font:600 16px/1.4 var(--font-interface,system-ui);color:var(--tf-ink)}
+.tf-root button.tf-home-favorite{height:auto;white-space:normal;overflow-wrap:anywhere;background:var(--tf-control-soft);color:var(--tf-ink);border:1px solid var(--tf-line);border-radius:4px;box-shadow:none;padding:6px 10px;font-size:12px}
+.tf-home-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:30px 36px;align-items:start}
+.tf-home-section{min-width:0}
+.tf-home-heading{display:flex;align-items:center;gap:10px}
+.tf-home-description{font-size:12px;margin:6px 0 14px}
+.tf-home-empty{border-top:1px solid var(--tf-line);padding:18px 0;color:var(--tf-quiet);font-size:13px}
+.tf-home-task{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--tf-line);border-left:3px solid var(--tf-priority-color);background:var(--tf-control-soft);border-radius:5px;padding:14px;margin-bottom:9px;min-width:0}
+.tf-home-task>input{margin:5px 0 0;flex-shrink:0}
+.tf-home-task-content{flex:1;min-width:0}
+.tf-root button.tf-home-title{display:block;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.5;font-weight:500;font-size:14px;height:auto;padding:0;background:transparent;color:var(--tf-ink);border:0;box-shadow:none}
+.tf-root button.tf-home-title:hover{text-decoration:underline}
+.tf-home-task-details{display:flex;align-items:center;gap:7px 12px;flex-wrap:wrap;color:var(--tf-quiet);font-size:11px;margin-top:8px}
+.tf-home-task-details .tf-status-label,.tf-home-task-details .tf-priority-label{font-size:11px}
+.tf-home-task>.tf-text-button{flex-shrink:0;margin-top:1px}
+@container taskflow (max-width:900px){.tf-home-grid{grid-template-columns:minmax(0,1fr);gap:26px}}
+@container taskflow (max-width:450px){.tf-home-task{padding:10px;gap:8px}.tf-home-task>.tf-text-button{font-size:11px}.tf-home-shortcuts{gap:10px}}

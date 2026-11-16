@@ -356,3 +356,33 @@ test('monthly series split at a clamped February occurrence retains the original
  const source={file:{path:'Tasks/month.md'},meta:{taskflow:1,id:'month',title:'Monthly',status:'open',priority:'normal',tags:[],scheduled:'2027-01-31',recurrence:{frequency:'monthly',interval:1,start:'2027-01-31',until:'2027-05-31'}},body:''};const selected={file:{path:'Tasks/feb.md'},...core.recurrenceOccurrence(source,'2027-02-28')};
  const changes=core.seriesPlan([source,selected],selected,selected.meta,'',{...source.meta.recurrence,start:'2027-02-28'},'next','2027-02-28');const next=changes.find(c=>c.task===selected);assert.equal(next.meta.recurrence.monthDay,31);assert.equal(JSON.stringify(core.recurrenceDates(next.meta.recurrence,'2027-03-02')),JSON.stringify(['2027-03-31','2027-04-30','2027-05-31']));assert.throws(()=>core.validateRecurrence({...next.meta.recurrence,monthDay:32}));
 });
+
+test('home excludes completed and archived tasks and keeps each task once per section',()=>{
+ const day='2026-11-16',make=(id,status,extra={})=>({file:{path:id+'.md'},meta:{id,title:id,status,...extra},body:'unchanged'});
+ const both=make('both','progress',{due:day,scheduled:day,scheduledTime:'10:00'}),early=make('early','open',{scheduled:day,scheduledTime:'09:00'});
+ const tasks=[both,early,make('done','done',{due:day}),make('archive','open',{due:day,archived:true})],before=JSON.stringify(tasks);
+ const result=core.homeOverview(tasks,day);assert.equal(result.active,2);assert.equal(result.today.length,2);assert.equal(result.today[0],early);assert.equal(result.today[1],both);assert.equal(JSON.stringify(tasks),before);
+});
+test('home upcoming uses the earliest future deadline or plan and respects the seven day boundary',()=>{
+ const make=(id,extra)=>({file:{path:id},meta:{id,title:id,status:'open',...extra},body:''});
+ const a=make('a',{due:'2026-11-21',scheduled:'2026-11-18'}),b=make('b',{due:'2026-11-17'}),edge=make('edge',{scheduled:'2026-11-23'}),outside=make('outside',{due:'2026-11-24'});
+ const result=core.homeOverview([a,outside,edge,b],'2026-11-16');assert.equal(result.upcoming.map(t=>t.meta.id).join(','),'b,a,edge');
+});
+test('home inbox contains unscheduled tasks even with deadlines and validates calendar dates',()=>{
+ const make=(id,extra)=>({file:{path:id},meta:{id,title:id,status:'delayed',...extra},body:''});
+ const tasks=[make('late',{due:'2026-11-15'}),make('planned',{scheduled:'2026-11-17'}),make('invalid',{due:'2026-02-30',scheduled:'2026-02-30'}),make('future',{due:'2026-11-20'})];
+ const result=core.homeOverview(tasks,'2026-11-16');assert.equal(result.overdue.length,1);assert.equal(result.overdue[0].meta.id,'late');assert.equal(result.inbox.length,3);assert.ok(!result.inbox.some(t=>t.meta.id==='planned'));
+});
+test('home projections cross month and year boundaries without changing source metadata',()=>{
+ const tasks=[{meta:{title:'New year',status:'open',due:'2027-01-01'},body:'notes'},{meta:{title:'End',status:'progress',scheduled:'2027-01-05'},body:''}];
+ const result=core.homeOverview(tasks,'2026-12-29');assert.equal(result.upcoming.length,2);assert.equal(result.today.length,0);assert.equal(core.homeOverview([],'2026-12-29').active,0);
+});
+test('home settings accept known modes and navigation keys while ignoring malformed data',()=>{
+ assert.equal(core.startView({}),'home');assert.equal(core.startView({startView:'planner'}),'planner');assert.equal(core.startView({startView:'archive'}),'home');
+ assert.equal(core.hiddenNavigation({hiddenNavigation:['home','stats','unknown','tags']}).join(','),'stats,tags');assert.equal(core.hiddenNavigation({hiddenNavigation:'stats'}).length,0);
+});
+test('favorite selection from home opens board with the exact saved filter snapshot',()=>{
+ const view=Object.create(core.TaskView.prototype);view.mode='home';view.render=()=>{};
+ view.applyFilter({id:'favorite',filters:{query:'hello',tag:'work',status:'progress',priority:'high',due:'week'}});
+ assert.equal(view.mode,'board');assert.equal(view.query,'hello');assert.equal(view.tag,'work');assert.equal(view.currentPreset,'favorite');assert.equal(view.statusFilter,'progress');assert.equal(view.priorityFilter,'high');assert.equal(view.dueFilter,'week');
+});
