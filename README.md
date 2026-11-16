@@ -1,5 +1,15 @@
 # TaskFlow Kanban für Obsidian
 
+## Löschen und Papierkorb (0.14.3)
+
+Im Aufgabeneditor verschiebt **Löschen → In Papierkorb verschieben** eine Aufgabe mit ihren gespeicherten Notizen und Teilaufgaben in den Papierkorb. Nicht gespeicherte Editoränderungen werden nicht übernommen. Unter **Archiv → Papierkorb** lassen sich Aufgaben wiederherstellen; der bisherige Status und Archivzustand bleiben erhalten. Gelöschte Aufgaben zählen nicht in Board, Kalender, Startseite oder Statistik.
+
+Bei einem Folgetermin kannst du **Nur diesen Termin** oder **Gesamte Serie / Serienabschnitt** wählen. Der erste Termin enthält die Serienregel und wird daher immer zusammen mit seiner Serie gelöscht. Auch abgeschlossene und archivierte Termine dieses Abschnitts kommen dann in die gemeinsame Papierkorbgruppe. Bereits zuvor einzeln gelöschte Termine behalten ihre eigene Papierkorbgruppe. Die ganze Gruppe lässt sich gemeinsam wiederherstellen. Einzelne gelöschte Folgetermine werden gegen automatische Neuerzeugung geschützt.
+
+**Papierkorb leeren → Endgültig leeren** entfernt die beim Öffnen der Bestätigung enthaltenen TaskFlow-Markdown-Dateien dauerhaft. Später hinzugekommene Papierkorbeinträge bleiben erhalten. Eine Wiederherstellung innerhalb von TaskFlow ist danach nicht möglich; Fehler mit teilweise gelöschten Dateien werden angezeigt. Andere Notizen und Anhänge werden nicht gelöscht.
+
+Die Metadaten `trashed: true` und `taskflowTrash` markieren den Papierkorb, bis die Dateien endgültig entfernt werden. Sie verbleiben zunächst im bisherigen Ordner. Alte Plugin-Versionen kennen diese Kennzeichnung nicht: Nach Benutzung des Papierkorbs nicht ohne Wiederherstellung der betroffenen Aufgaben zurückwechseln.
+
 ## Wiederholtermine zentral bearbeiten (0.14.2)
 
 Unter **Board → Wiederholtermine** steht jede Serie bzw. jeder geänderte Serienabschnitt einmal, mit Rhythmus, Zeitraum, Status und nächstem offenen Termin. Eine eigene Suche findet Serien anhand von Titel, Tags, Rhythmus oder Status. Die Verwaltung enthält auch pausierte, beendete und archivierte Serienquellen; normale Board-Filter beeinflussen sie nicht.

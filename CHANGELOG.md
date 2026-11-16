@@ -4,6 +4,22 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-11-16
+
+### Added
+- „Löschen“ im Aufgabeneditor verschiebt Einzelaufgaben und Serientermine zunächst in einen lokalen Papierkorb.
+- Archiv-Unterreiter „Papierkorb“ mit Wiederherstellung und bestätigtem endgültigem Leeren. Ganze Serien werden kompakt als gemeinsam wiederherstellbare Gruppe angezeigt.
+- Einzelne Folgetermine oder gesamte Serienabschnitte löschen. Der erste Serientermin enthält die Serienregel und wird zusammen mit der Serie gelöscht.
+
+### Changed
+- Gelöschte Aufgaben sind aus aktiven Ansichten, Kalender, Startseite, Serienverwaltung und Statistik ausgeschlossen; Status, Archivzustand, Notizen und Teilaufgaben bleiben bis zum endgültigen Löschen erhalten.
+- Gelöschte Folgetermine werden über die vorhandene Ausnahmeliste vor Neuerzeugung geschützt; beim Wiederherstellen wird eine dafür ergänzte Ausnahme zurückgenommen. Gelöschte Serien erzeugen keine Folgetermine.
+- Mehrdateiänderungen prüfen Dateistände und nehmen eigene Teiländerungen bei Fehlern zurück. Endgültiges Leeren betrifft nur die bestätigte Momentaufnahme; teilweise ausgeführte Löschungen werden ausdrücklich gemeldet.
+
+### Compatibility
+- Neue Metadaten `trashed` und `taskflowTrash`; Dateien bleiben bis zum Leeren am bisherigen Ort. Ältere Plugin-Versionen kennen den Papierkorb nicht und können diese Aufgaben anzeigen. Nach Nutzung des Papierkorbs nicht ohne vorherige Wiederherstellung auf ältere Versionen zurückgehen.
+- Endgültiges Leeren entfernt die ausgewählten Markdown-Dateien dauerhaft; Wiederherstellung ist danach nur aus eigenen Sicherungen möglich.
+
 ## [0.14.2] - 2026-11-16
 
 ### Added

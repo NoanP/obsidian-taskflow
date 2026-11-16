@@ -426,3 +426,37 @@ test('series management retains paused, ended, split sources and orphaned occurr
  const tasks=[make('paused',{recurrence:{start:'2026-11-16',enabled:false}}),make('ended',{recurrence:{start:'2026-11-01',until:'2026-11-10'}}),make('split',{recurrence:{start:'2026-11-17'}}),make('orphan-a',{recurrenceSeries:'missing',scheduled:'2026-11-18'}),make('orphan-b',{recurrenceSeries:'missing',scheduled:'2026-11-25'}),make('single',{})];
  const groups=core.seriesOverview(tasks,'2026-11-16');assert.equal(groups.length,4);assert.equal(groups.find(g=>g.id==='missing').terms.length,2);assert.equal(groups.find(g=>g.id==='missing').source,null);assert.equal(groups.find(g=>g.id==='missing').state,'Quelle fehlt');assert.equal(groups.find(g=>g.id==='paused').state,'Pausiert');assert.equal(groups.find(g=>g.id==='ended').state,'Beendet');assert.equal(groups.find(g=>g.id==='split').state,'Aktiv');
 });
+
+function trashFixture(items){const fixture=memoryPlugin(items);fixture.p.scan=async()=>{fixture.p.tasks=await fixture.p.readTaskFiles();};fixture.p.app.vault.delete=async file=>{if(!fixture.files.delete(file.path))throw new Error('missing');};return fixture;}
+test('soft delete and restore preserve archived state, completion, unknown metadata, notes and subtasks',async()=>{
+ const item={file:{path:'Tasks/item.md'},meta:{taskflow:1,id:'single',title:'Archive',status:'done',archived:true,completed:'2026-11-16',custom:{x:42}},body:'Notes\n- [x] Keep this\n'};item.raw=core.encode(item.meta,item.body);
+ const {p,files}=trashFixture([item]);await p.moveToTrash(item);assert.equal(files.size,1);const deleted=p.tasks[0];assert.equal(deleted.meta.trashed,true);assert.equal(core.tasksForView(p.tasks,'stats').length,0);assert.equal(core.calendarTasks(p.tasks).length,0);assert.equal(core.homeOverview(p.tasks).active,0);assert.equal(deleted.body,item.body);
+ await p.restoreTrash(deleted);assert.equal(JSON.stringify(p.tasks[0].meta),JSON.stringify(item.meta));assert.equal(p.tasks[0].body,item.body);
+});
+test('whole series goes to trash and restores as one batch including archived and completed terms',async()=>{
+ const items=seriesFixture();items[2].meta.status='done';items[2].meta.archived=true;items[2].raw=core.encode(items[2].meta,items[2].body);const {p,files}=trashFixture(items);
+ await p.moveToTrash(items[1],'series');assert.equal(p.tasks.filter(t=>t.meta.trashed).length,6);assert.equal(core.trashGroups(p.tasks).length,1);assert.equal(core.seriesOverview(p.tasks).length,0);assert.equal(await p.ensureRecurrences(p.tasks,'2026-11-13'),0);
+ await p.restoreTrash(p.tasks[0]);assert.equal(p.tasks.filter(t=>t.meta.trashed).length,0);assert.equal(files.size,6);assert.equal(p.tasks.find(t=>t.file.path===items[2].file.path).meta.status,'done');assert.equal(p.tasks.find(t=>t.file.path===items[2].file.path).meta.archived,true);
+});
+test('permanently purged occurrence is not regenerated and restoring a soft-deleted term removes its added skip',async()=>{
+ const items=seriesFixture(),{p,files}=trashFixture(items);await p.moveToTrash(items[1]);let source=p.tasks.find(t=>t.meta.id==='series'),deleted=p.tasks.find(t=>t.meta.trashed);const day=deleted.meta.recurrenceDate;
+ assert.ok(source.meta.recurrence.skipped.includes(day));await p.restoreTrash(deleted);assert.ok(!p.tasks.find(t=>t.meta.id==='series').meta.recurrence.skipped.includes(day));
+ await p.moveToTrash(p.tasks.find(t=>t.file.path===items[1].file.path));deleted=p.tasks.find(t=>t.meta.trashed);await p.emptyTrash([deleted]);assert.equal(files.size,5);assert.equal(await p.ensureRecurrences(p.tasks,'2026-11-13'),0);assert.equal(files.size,5);
+});
+test('empty trash deletes only the confirmed snapshot, never new trash or ordinary tasks',async()=>{
+ const make=id=>{const meta={taskflow:1,id,title:id,status:'open'};return {file:{path:'Tasks/'+id+'.md'},meta,body:'keep',raw:core.encode(meta,'keep')};};
+ const {p,files}=trashFixture([make('a'),make('b'),make('normal')]);await p.moveToTrash(p.tasks.find(t=>t.meta.id==='a'));const snapshot=p.tasks.filter(t=>t.meta.trashed);await p.moveToTrash(p.tasks.find(t=>t.meta.id==='b'));await p.emptyTrash(snapshot);assert.equal(files.size,2);assert.ok(p.tasks.find(t=>t.meta.id==='b').meta.trashed);assert.ok(!p.tasks.find(t=>t.meta.id==='normal').meta.trashed);
+});
+test('empty trash rejects changed or restored files before deleting any file',async()=>{
+ const items=seriesFixture(),{p,files}=trashFixture(items);await p.moveToTrash(items[0],'series');const snapshot=[...p.tasks];await p.restoreTrash(p.tasks[0]);await assert.rejects(()=>p.emptyTrash(snapshot),/inzwischen geändert/);assert.equal(files.size,6);
+});
+test('a failed multi-file trash operation rolls back its own writes',async()=>{
+ const items=seriesFixture(),{p,files}=trashFixture(items),original=[...files.entries()];let calls=0;const process=p.app.vault.process;p.app.vault.process=async(f,fn)=>{if(++calls===2)throw new Error('disk full');return process(f,fn);};
+ await assert.rejects(()=>p.moveToTrash(items[0],'series'),/disk full/);assert.equal(JSON.stringify([...files.entries()]),JSON.stringify(original));assert.equal(p.seriesEditing,false);
+});
+test('permanent delete reports partial progress and leaves remaining items in trash',async()=>{
+ const items=seriesFixture(),{p,files}=trashFixture(items);await p.moveToTrash(items[0],'series');let calls=0;const remove=p.app.vault.delete;p.app.vault.delete=async f=>{if(++calls===2)throw new Error('disk full');return remove(f);};await assert.rejects(()=>p.emptyTrash([...p.tasks]),/1 Datei\(en\) endgültig gelöscht/);assert.equal(files.size,5);assert.ok(p.tasks.every(t=>t.meta.trashed));
+});
+test('trash protects series exceptions during edits and cannot be silently changed by stale card actions',async()=>{
+ const items=seriesFixture(),{p}=trashFixture(items);await p.moveToTrash(items[1]);const deleted=p.tasks.find(t=>t.meta.trashed);await assert.rejects(()=>p.change(deleted,m=>m.status='done'),/Papierkorb/);const source=p.tasks.find(t=>t.meta.id==='series');const changes=core.seriesPlan(p.tasks,source,{...source.meta,title:'New'},'New body',source.meta.recurrence,'new','2026-11-13');assert.ok(!changes.some(change=>change.task.file.path===deleted.file.path));assert.ok(changes.find(change=>change.meta.id==='series').meta.recurrence.skipped.includes(deleted.meta.recurrenceDate));
+});

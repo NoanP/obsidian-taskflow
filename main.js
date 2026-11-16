@@ -69,7 +69,40 @@ const NAVIGATION={board:'Board',planner:'Tagesplaner',stats:'Statistik',archive:
 function hiddenNavigation(settings){return Array.isArray(settings.hiddenNavigation)?settings.hiddenNavigation.filter(key=>Object.hasOwn(NAVIGATION,key)):[];}
 function startView(settings){return ['home','board','planner','stats'].includes(settings.startView)?settings.startView:'home';}
 function isSeriesTask(task){return !!(task.meta.recurrence||task.meta.recurrenceSeries);}
+function trashPlan(tasks,selected,scope,batch,deletedAt){
+  if(selected.meta.trashed)throw new Error('Diese Aufgabe liegt bereits im Papierkorb.');
+  const seriesId=selected.meta.recurrence?selected.meta.id:selected.meta.recurrenceSeries;
+  if(selected.meta.recurrence&&scope!=='series')throw new Error('Der erste Termin enthält die Serienregel. Bitte die ganze Serie löschen.');
+  if(scope==='series'&&!seriesId)throw new Error('Die Serienkennung fehlt.');
+  const targets=scope==='series'?tasks.filter(t=>!t.meta.trashed&&(t.meta.id===seriesId||t.meta.recurrenceSeries===seriesId)):[selected];
+  const changes=targets.map(task=>({task,meta:{...structuredClone(task.meta),trashed:true,taskflowTrash:{batch,scope,deletedAt}},body:task.body}));
+  if(scope!=='series'&&selected.meta.recurrenceSeries){
+    const source=tasks.find(t=>t.meta.id===seriesId&&t.meta.recurrence),day=dateValue(selected.meta.recurrenceDate);
+    if(source&&validDay(day)&&!(source.meta.recurrence.skipped||[]).map(dateValue).includes(day)){
+      const meta=structuredClone(source.meta);meta.recurrence.skipped=[...(meta.recurrence.skipped||[]),day];
+      changes.push({task:source,meta,body:source.body});changes[0].meta.taskflowTrash.skipAdded=true;
+    }
+  }
+  return changes;
+}
+function restoreTrashPlan(tasks,selected){
+  if(!selected.meta.trashed)throw new Error('Diese Aufgabe liegt nicht mehr im Papierkorb.');
+  const info=selected.meta.taskflowTrash||{},targets=info.scope==='series'&&info.batch?tasks.filter(t=>t.meta.trashed&&t.meta.taskflowTrash?.batch===info.batch):[selected];
+  const changes=targets.map(task=>{const meta=structuredClone(task.meta);delete meta.trashed;delete meta.taskflowTrash;return {task,meta,body:task.body};});
+  if(info.skipAdded){
+    const day=dateValue(selected.meta.recurrenceDate),source=tasks.find(t=>t.meta.id===selected.meta.recurrenceSeries&&t.meta.recurrence);
+    if(source&&!tasks.some(t=>t.file.path!==selected.file.path&&t.meta.trashed&&t.meta.recurrenceSeries===selected.meta.recurrenceSeries&&dateValue(t.meta.recurrenceDate)===day)){
+      const meta=structuredClone(source.meta);meta.recurrence.skipped=(meta.recurrence.skipped||[]).filter(value=>dateValue(value)!==day);changes.push({task:source,meta,body:source.body});
+    }
+  }
+  return changes;
+}
+function trashGroups(tasks){
+  const groups=new Map();for(const task of tasks.filter(t=>t.meta.trashed)){const info=task.meta.taskflowTrash||{},key=info.scope==='series'&&info.batch?info.batch:task.file.path;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(task);}
+  return [...groups.values()].map(items=>({task:items.find(t=>t.meta.recurrence)||items[0],count:items.length}));
+}
 function seriesOverview(tasks,reference=today()){
+  tasks=tasks.filter(t=>!t.meta.trashed);
   const groups=new Map();
   for(const task of tasks)if(task.meta.recurrence&&task.meta.id)groups.set(task.meta.id,{id:task.meta.id,source:task,terms:[task]});
   for(const task of tasks){if(task.meta.recurrence||!task.meta.recurrenceSeries)continue;const id=task.meta.recurrenceSeries;if(!groups.has(id))groups.set(id,{id,source:null,terms:[]});groups.get(id).terms.push(task);}
@@ -83,11 +116,12 @@ function seriesOverview(tasks,reference=today()){
 }
 // Keep the files and generation intact; only ordinary active task lists hide series.
 function tasksForView(tasks,mode,plannerMode='agenda',archive=false){
+  if(tasks.some(t=>t.meta.trashed))tasks=tasks.filter(t=>!t.meta.trashed);
   return !archive&&(mode==='board'||mode==='planner'&&plannerMode!=='calendar')?tasks.filter(task=>!isSeriesTask(task)):tasks;
 }
 // A read-only projection: neither visiting home nor choosing a section schedules tasks.
 function homeOverview(tasks,reference=today()){
-  const active=tasks.filter(t=>!t.meta.archived&&t.meta.status!=='done'),end=shiftDay(reference,7);
+  const active=tasks.filter(t=>!t.meta.trashed&&!t.meta.archived&&t.meta.status!=='done'),end=shiftDay(reference,7);
   const day=value=>{const d=dateValue(value);return validDay(d)?d:'';};
   const compare=(a,b)=>a.meta.title.localeCompare(b.meta.title)||String(a.file?.path||a.meta.id||'').localeCompare(String(b.file?.path||b.meta.id||''));
   const current=active.filter(t=>day(t.meta.scheduled)===reference||day(t.meta.due)===reference).sort((a,b)=>{
@@ -203,7 +237,7 @@ function calendarMove(meta,day,start){
 // Project deadlines into the calendar without writing planning metadata to task files.
 function calendarTasks(tasks){
   return tasks.flatMap(task=>{
-    if(task.meta.archived)return [];
+    if(task.meta.archived||task.meta.trashed)return [];
     if(validDay(dateValue(task.meta.scheduled)))return [task];
     const due=dateValue(task.meta.due);
     if(!['open','progress'].includes(task.meta.status)||!validDay(due))return [];
@@ -255,7 +289,7 @@ function recurrenceDates(rule,reference=today()){
 }
 function recurrenceOccurrence(source,day){
   const rule=source.meta.recurrence,meta=structuredClone(source.meta);if(source.meta.recurrenceTemplate?.meta)Object.assign(meta,structuredClone(source.meta.recurrenceTemplate.meta));
-  delete meta.recurrence;delete meta.completed;delete meta.archived;delete meta.updated;delete meta.recurrenceTemplate;delete meta.recurrenceException;delete meta.recurrenceSkipped;delete meta.recurrenceSuperseded;
+  delete meta.trashed;delete meta.taskflowTrash;delete meta.recurrence;delete meta.completed;delete meta.archived;delete meta.updated;delete meta.recurrenceTemplate;delete meta.recurrenceException;delete meta.recurrenceSkipped;delete meta.recurrenceSuperseded;
   meta.id=(rule.revision?'tf--'+rule.revision:source.meta.id)+'--'+day;meta.recurrenceSeries=source.meta.id;meta.recurrenceDate=day;if(rule.revision)meta.recurrenceRevision=rule.revision;else delete meta.recurrenceRevision;
   meta.status='open';meta.due=day;meta.scheduled=day;meta.durationMinutes=rule.durationMinutes||30;
   if(rule.time)meta.scheduledTime=rule.time;else delete meta.scheduledTime;
@@ -285,7 +319,7 @@ function seriesPlan(tasks,selected,data,body,rule,revision,reference=today()){
   for(const key of ['recurrenceSeries','recurrenceDate','recurrenceRevision','recurrenceException','recurrenceTemplate','recurrenceSkipped','recurrenceSuperseded'])delete next[key];
   next.recurrence=nextRule;next.id=selected.meta.id;
   const following=tasks.filter(t=>t.file.path!==selected.file.path&&t.meta.recurrenceSeries===source.meta.id&&dateValue(t.meta.recurrenceDate)>=boundary&&!t.meta.recurrenceSuperseded);
-  const protectedTasks=following.filter(t=>t.meta.status==='done'||t.meta.archived||t.meta.recurrenceException||t.meta.recurrenceSkipped);
+  const protectedTasks=following.filter(t=>t.meta.status==='done'||t.meta.archived||t.meta.trashed||t.meta.recurrenceException||t.meta.recurrenceSkipped);
   nextRule.skipped=[...new Set([...(Array.isArray(rule.skipped)?rule.skipped.map(dateValue):[]),...protectedTasks.map(t=>dateValue(t.meta.recurrenceDate))])].filter(day=>validDay(day)&&day>nextRule.start);
   if(protectedTasks.some(t=>dateValue(t.meta.recurrenceDate)===nextRule.start))throw new Error('Am neuen ersten Termin existiert bereits ein geschützter Serientermin. Bitte ein anderes Datum wählen oder diesen einzeln bearbeiten.');
   if(source.file.path!==selected.file.path){const prior=structuredClone(source.meta),end=shiftDay(boundary,-1);prior.recurrence={...prior.recurrence,until:prior.recurrence.until&&prior.recurrence.until<end?prior.recurrence.until:end};if(end<prior.recurrence.start)prior.recurrence.enabled=false;changes.push({task:source,meta:prior,body:source.body});}
@@ -316,6 +350,32 @@ class FilterNameModal extends Modal{
     const error=form.createDiv({cls:'tf-form-error',attr:{role:'alert'}});error.hidden=true;
     const actions=form.createDiv({cls:'tf-editor-footer'});const cancel=button(actions,'Abbrechen',()=>this.close(),'tf-editor-cancel');cancel.type='button';const save=actions.createEl('button',{type:'submit',text:'Speichern',cls:'tf-editor-save'});
     form.onsubmit=async event=>{event.preventDefault();save.disabled=true;error.hidden=true;try{const id=await this.view.plugin.storeFilter(input.value,this.preset?null:this.view.filterValues(),this.preset?.id);this.view.currentPreset=id;this.view.render();this.close();}catch(e){error.setText(e.message);error.hidden=false;save.disabled=false;}};input.focus();
+  }
+  onClose(){this.contentEl.empty();}
+}
+class TrashModal extends Modal{
+  constructor(plugin,task,onSuccess){super(plugin.app);this.plugin=plugin;this.task=task;this.onSuccess=onSuccess;}
+  onOpen(){
+    const c=this.contentEl;c.addClass('tf-editor-modal');c.createEl('h2',{text:'In den Papierkorb verschieben'});
+    c.createEl('p',{text:this.task.meta.title});let scope=this.task.meta.recurrence?'series':'single';
+    if(isSeriesTask(this.task)){
+      if(this.task.meta.recurrence)c.createEl('p',{text:'Dieser erste Termin enthält die Serienregel. Die gesamte Serie mit ihren erfassten Terminen wird in den Papierkorb verschoben und erzeugt keine weiteren Termine. Du kannst sie dort wiederherstellen.'});
+      else{const label=c.createEl('label',{cls:'tf-form-field'});label.createSpan({text:'Löschen anwenden auf'});const select=label.createEl('select',{attr:{'aria-label':'Löschen anwenden auf'}});select.createEl('option',{value:'single',text:'Nur diesen Termin'});select.createEl('option',{value:'series',text:'Gesamte Serie / Serienabschnitt'});select.onchange=()=>scope=select.value;}
+    }
+    c.createEl('p',{text:'Notizen und Teilaufgaben bleiben bis zum endgültigen Leeren im Papierkorb erhalten. Nicht gespeicherte Änderungen im Editor werden nicht übernommen.',cls:'tf-muted'});
+    const error=c.createDiv({cls:'tf-form-error',attr:{role:'alert'}});error.hidden=true;const actions=c.createDiv({cls:'tf-editor-footer'}),cancel=button(actions,'Abbrechen',()=>this.close(),'tf-editor-cancel');
+    const confirm=button(actions,'In Papierkorb verschieben',async()=>{confirm.disabled=true;cancel.disabled=true;try{await this.plugin.moveToTrash(this.task,scope);this.close();this.onSuccess();}catch(e){error.setText(e.message);error.hidden=false;confirm.disabled=false;cancel.disabled=false;}},'tf-editor-save');
+  }
+  onClose(){this.contentEl.empty();}
+}
+class EmptyTrashModal extends Modal{
+  constructor(plugin){super(plugin.app);this.plugin=plugin;this.snapshot=plugin.tasks.filter(t=>t.meta.trashed);}
+  onOpen(){
+    const c=this.contentEl;c.addClass('tf-editor-modal');c.createEl('h2',{text:'Papierkorb endgültig leeren?'});
+    c.createEl('p',{text:`${this.snapshot.length} Aufgabendateien mit Notizen und Teilaufgaben werden dauerhaft gelöscht. Das kann in TaskFlow nicht rückgängig gemacht werden.`});
+    const error=c.createDiv({cls:'tf-form-error',attr:{role:'alert'}});error.hidden=true;const actions=c.createDiv({cls:'tf-editor-footer'}),cancel=button(actions,'Abbrechen',()=>this.close(),'tf-editor-cancel');
+    const confirm=button(actions,'Endgültig leeren',async()=>{confirm.disabled=true;cancel.disabled=true;try{await this.plugin.emptyTrash(this.snapshot);this.close();}catch(e){error.setText(e.message);error.hidden=false;confirm.disabled=true;cancel.disabled=false;cancel.setText('Schließen und Papierkorb prüfen');}},'tf-editor-save');
+    cancel.focus();
   }
   onClose(){this.contentEl.empty();}
 }
@@ -400,13 +460,14 @@ class TaskEditor extends Modal {
       catch(e){busy=false;error.setText(e.message||String(e));error.hidden=false;save.disabled=false;cancel.disabled=false;}
     };
     if(this.task&&(seriesSource||data.recurrenceSeries)){const skip=button(footer,'Diesen Termin überspringen',async()=>{if(busy)return;busy=true;skip.disabled=true;save.disabled=true;cancel.disabled=true;try{await this.plugin.skipOccurrence(this.task);this.close();}catch(e){busy=false;error.setText(e.message);error.hidden=false;skip.disabled=false;save.disabled=false;cancel.disabled=false;}},'tf-editor-cancel');skip.type='button';}
+    if(this.task&&!this.task.meta.trashed){const remove=button(footer,'Löschen',()=>{if(!busy)new TrashModal(this.plugin,this.task,()=>this.close()).open();},'tf-editor-cancel');remove.type='button';}
     form.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();form.requestSubmit();}};
     title.focus();
   }
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.currentPreset='';this.searchIndex=new WeakMap();this.mode=startView(plugin.settings);this.homeExpanded=new Set();this.boardMode='tasks';this.seriesQuery='';this.expandedSeries=new Set();this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.currentPreset='';this.searchIndex=new WeakMap();this.mode=startView(plugin.settings);this.homeExpanded=new Set();this.boardMode='tasks';this.seriesQuery='';this.expandedSeries=new Set();this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.archiveMode='tasks';this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
   async onClose(){clearTimeout(this.searchTimer);this.calendarPointerCleanup?.();this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
@@ -447,7 +508,7 @@ class TaskView extends ItemView {
     const workspace=shell.createDiv({cls:'tf-workspace'});
     const side=workspace.createEl('nav',{cls:'tf-sidebar',attr:{'aria-label':'TaskFlow Navigation'}});
     side.createDiv({text:'TaskFlow',cls:'tf-side-label'});
-    const navigate=(mode,archive)=>{this.mode=mode;this.showArchive=archive;this.render();};
+    const navigate=(mode,archive)=>{this.mode=mode;this.showArchive=archive;if(archive)this.archiveMode='tasks';this.render();};
     button(side,'Startseite',()=>navigate('home',false),'tf-side-item'+(!this.showArchive&&this.mode==='home'?' is-active':''));
     const hidden=new Set(hiddenNavigation(this.plugin.settings));
     for(const [key,label]of Object.entries(NAVIGATION)){if(['tags','favorites'].includes(key)||hidden.has(key))continue;const archive=key==='archive',mode=archive?'board':key;button(side,label,()=>navigate(mode,archive),'tf-side-item'+((archive?this.showArchive:!this.showArchive&&this.mode===mode)?' is-active':''));}
@@ -463,12 +524,13 @@ class TaskView extends ItemView {
     side.createDiv({text:'Lokal im Vault',cls:'tf-side-footer'});
     const main=workspace.createDiv({cls:'tf-main'});
     const header=main.createDiv({cls:'tf-header'}),title=header.createDiv();
-    title.createEl('h1',{text:this.showArchive?(this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='home'?'Mein Tag':this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':this.boardMode==='series'?'Wiederholtermine':'Meine Aufgaben'});
+    title.createEl('h1',{text:this.showArchive?(this.archiveMode==='trash'?'Papierkorb':this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='home'?'Mein Tag':this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':this.boardMode==='series'?'Wiederholtermine':'Meine Aufgaben'});
     title.createEl('p',{text:new Date().toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'})+' · Mein Arbeitsbereich',cls:'tf-muted tf-subtitle'});
     const managingSeries=this.mode==='board'&&!this.showArchive&&this.boardMode==='series';
     button(header,managingSeries?'+ Neue Wiederholung':this.mode==='planner'?'+ Tagesaufgabe':'+ Neue Aufgabe',()=>new TaskEditor(this.plugin,null,'open',this.mode==='planner'?this.plannerDate:managingSeries?today():'','normal','',{repeat:managingSeries}).open(),'tf-primary');
     if(this.mode==='board'&&!this.showArchive){const tabs=main.createDiv({cls:'tf-planner-modes',attr:{'aria-label':'Boardansicht'}});for(const [key,label]of Object.entries({tasks:'Aufgaben',series:'Wiederholtermine'})){const b=button(tabs,label,()=>{this.boardMode=key;this.render();},'tf-planner-mode'+(this.boardMode===key?' is-active':''));b.setAttribute('aria-pressed',String(this.boardMode===key));}}
-    if(this.mode==='board'&&!managingSeries){
+    if(this.showArchive){const tabs=main.createDiv({cls:'tf-planner-modes',attr:{'aria-label':'Archivansicht'}});for(const [key,label]of Object.entries({tasks:'Archivierte Aufgaben',trash:'Papierkorb'})){const b=button(tabs,label,()=>{this.archiveMode=key;this.render();},'tf-planner-mode'+(this.archiveMode===key?' is-active':''));b.setAttribute('aria-pressed',String(this.archiveMode===key));}}
+    if(this.mode==='board'&&!managingSeries&&!(this.showArchive&&this.archiveMode==='trash')){
     const summary=main.createDiv({cls:'tf-summary'});
     for(const [key,label]of Object.entries({total:'gesamt',open:'offen',progress:'in Arbeit',delayed:'verzögert',done:'erledigt'})){
       const item=summary.createSpan();item.createEl('strong',{text:String(s[key])});item.appendText(' '+label);
@@ -479,7 +541,7 @@ class TaskView extends ItemView {
     focusBar.createSpan({text:this.showArchive?`${all.length} archivierte Aufgaben`:dueToday.length?dueToday.map(t=>t.meta.title).slice(0,2).join(' · '):'Keine Aufgaben heute fällig',cls:'tf-focus-text'});
     focusBar.createSpan({text:s.overdue?`${s.overdue} überfällig`:'Keine überfälligen Aufgaben',cls:s.overdue?'tf-due tf-due-late':'tf-muted'});
     }
-    if(this.mode==='home'&&!this.showArchive){this.renderHome(main,all,presets);}else if(managingSeries){this.renderSeries(main);}else{
+    if(this.showArchive&&this.archiveMode==='trash'){this.renderTrash(main);}else if(this.mode==='home'&&!this.showArchive){this.renderHome(main,all,presets);}else if(managingSeries){this.renderSeries(main);}else{
     const toolbar=main.createDiv({cls:'tf-toolbar'});
     toolbar.createSpan({text:this.mode==='planner'?'FOKUS FÜR DEN TAG · ÜBERBLICK FÜR DIE WOCHE':this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
     if(this.showArchive)button(toolbar,this.mode==='stats'?'Kanban':'Statistik',()=>{this.mode=this.mode==='stats'?'board':'stats';this.render();},'tf-text-button');
@@ -510,6 +572,18 @@ class TaskView extends ItemView {
     c.scrollTop=scroll;
     if(focus){const target=c.querySelector(`[data-tf-focus="${focus.key}"]`);if(target){target.focus({preventScroll:true});if((target.type==='search'||target.tagName==='TEXTAREA')&&Number.isInteger(focus.start))target.setSelectionRange(focus.start,focus.end);}}
     this.animateMoves(previous);
+  }
+  renderTrash(c){
+    const trash=this.plugin.tasks.filter(t=>t.meta.trashed),header=c.createDiv({cls:'tf-toolbar'});header.createSpan({text:trash.length+' gelöschte Aufgaben',attr:{role:'status','aria-live':'polite'}});
+    const empty=button(header,'Papierkorb leeren',()=>new EmptyTrashModal(this.plugin).open(),'tf-primary');empty.disabled=!trash.length;
+    c.createEl('p',{text:'Gelöschte Aufgaben erscheinen nicht im Board, Kalender, auf der Startseite oder in Statistiken. Wiederherstellen behält den bisherigen Status und Archivzustand.',cls:'tf-muted'});
+    if(!trash.length){c.createDiv({text:'Der Papierkorb ist leer.',cls:'tf-filter-empty'});return;}
+    for(const group of trashGroups(trash)){
+      const task=group.task,section=c.createEl('section',{cls:'tf-series-row'});section.createEl('h2',{text:task.meta.title});
+      const deleted=new Date(task.meta.taskflowTrash?.deletedAt||'');
+      section.createEl('p',{text:(task.meta.taskflowTrash?.scope==='series'?'Serie / Serienabschnitt · '+group.count+' Aufgaben':'Einzelaufgabe / einzelner Termin')+' · Gelöscht: '+(Number.isNaN(deleted.getTime())?'Unbekannt':deleted.toLocaleString('de-CH')),cls:'tf-muted'});
+      const restore=button(section,task.meta.taskflowTrash?.scope==='series'?'Serie wiederherstellen':'Wiederherstellen',async()=>{restore.disabled=true;try{await this.plugin.restoreTrash(task);}catch(e){report(e);restore.disabled=false;}},'tf-primary');
+    }
   }
   renderSeries(c){
     const all=seriesOverview(this.plugin.tasks),terms=searchText(this.seriesQuery).trim().split(/\s+/).filter(Boolean);
@@ -577,7 +651,7 @@ class TaskView extends ItemView {
   renderResults(c,all){
     this.calendarPointerCleanup?.();c.empty();
     all=tasksForView(all,this.mode,this.plannerMode,this.showArchive);
-    if(this.mode==='board'&&!this.showArchive&&this.plugin.tasks.some(t=>!t.meta.archived&&isSeriesTask(t))){
+    if(this.mode==='board'&&!this.showArchive&&this.plugin.tasks.some(t=>!t.meta.trashed&&!t.meta.archived&&isSeriesTask(t))){
       const note=c.createDiv({cls:'tf-filter-info'});note.createSpan({text:'Serientermine findest du auf der Startseite und im Kalender.'});
       button(note,'Kalender öffnen',()=>{this.mode='planner';this.plannerMode='calendar';this.plannerDate=today();this.render();},'tf-text-button');
     }
@@ -897,6 +971,39 @@ class TaskFlow extends Plugin {
       else{ id=crypto.randomUUID();presets.push({id,name:title,filters:filterSnapshot(filters)});}settings.savedFilters=presets;return id;});
   }
   async deleteFilter(id){return this.updateSettings(settings=>{settings.savedFilters=savedFilters(settings).filter(p=>p.id!==id);});}
+  async readTaskFiles(){
+    const tasks=[];for(const file of this.app.vault.getMarkdownFiles().filter(f=>f.path.startsWith(this.settings.folder+'/'))){const raw=await this.app.vault.read(file);try{const parsed=decode(raw);validateTaskFields(parsed.meta);tasks.push({file,raw,...parsed});}catch(_){/* Other Markdown files are never deletion targets. */}}return tasks;
+  }
+  async trashTransaction(task,plan){
+    if(this.seriesEditing)throw new Error('Eine Aufgabenänderung läuft bereits. Bitte kurz warten.');
+    this.seriesEditing=true;this.scanVersion++;const written=[];
+    try{
+      if(this.recurrenceRun)await this.recurrenceRun;
+      const tasks=await this.readTaskFiles(),selected=tasks.find(t=>t.file.path===task.file.path);
+      if(!selected||selected.raw!==task.raw)throw new Error('Die Aufgabe wurde inzwischen geändert. Bitte erneut öffnen.');
+      const changes=plan(tasks,selected);
+      for(const change of changes){if(await this.app.vault.read(change.task.file)!==change.task.raw)throw new Error('Eine betroffene Aufgabe wurde inzwischen geändert.');}
+      for(const change of changes){const next=encode(change.meta,change.body);await this.app.vault.process(change.task.file,raw=>{if(raw!==change.task.raw)throw new Error('Eine betroffene Aufgabe wurde inzwischen geändert.');return next;});written.push({...change,next});}
+    }catch(e){
+      let conflict=false;for(const change of written.reverse()){try{await this.app.vault.process(change.task.file,raw=>{if(raw!==change.next)throw new Error('Konflikt');return change.task.raw;});}catch(_){conflict=true;}}
+      if(conflict)throw new Error('Änderung unvollständig: Gleichzeitig bearbeitete Dateien wurden nicht überschrieben. Bitte den Papierkorb und die betroffenen Aufgaben prüfen.');throw e;
+    }finally{this.seriesEditing=false;await this.scan();}
+  }
+  async moveToTrash(task,scope='single'){return this.trashTransaction(task,(tasks,selected)=>trashPlan(tasks,selected,scope,crypto.randomUUID(),new Date().toISOString()));}
+  async restoreTrash(task){return this.trashTransaction(task,(tasks,selected)=>restoreTrashPlan(tasks,selected));}
+  async emptyTrash(snapshot){
+    if(this.seriesEditing)throw new Error('Eine Aufgabenänderung läuft bereits. Bitte kurz warten.');
+    this.seriesEditing=true;this.scanVersion++;let removed=0;
+    try{
+      if(this.recurrenceRun)await this.recurrenceRun;
+      const current=await this.readTaskFiles(),targets=snapshot.map(task=>{const found=current.find(t=>t.file.path===task.file.path);if(!found||!found.meta.trashed||found.raw!==task.raw)throw new Error('Der Papierkorb wurde inzwischen geändert. Bitte neu öffnen und prüfen.');return found;});
+      // Permanently purging a generated term is safe only with its source-side skip.
+      for(const task of targets){if(!task.meta.recurrenceSeries)continue;const source=current.find(t=>t.meta.id===task.meta.recurrenceSeries&&t.meta.recurrence);if(source&&!source.meta.trashed&&!(source.meta.recurrence.skipped||[]).map(dateValue).includes(dateValue(task.meta.recurrenceDate)))throw new Error('Ein Serientermin ist nicht gegen Neuerzeugung geschützt. Bitte erst wiederherstellen und erneut löschen.');}
+      targets.sort((a,b)=>Number(!!a.meta.recurrence)-Number(!!b.meta.recurrence));
+      for(const task of targets){const raw=await this.app.vault.read(task.file);if(raw!==task.raw||!decode(raw).meta.trashed)throw new Error('Eine Aufgabe wurde während des Leerens geändert.');await this.app.vault.delete(task.file);removed++;}
+    }catch(e){throw new Error(`${removed} Datei(en) endgültig gelöscht. Verbleibende Dateien bleiben im Papierkorb. ${e.message}`);}
+    finally{this.seriesEditing=false;await this.scan();}
+  }
   async open(){let leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(!leaf){leaf=this.app.workspace.getLeaf('tab');await leaf.setViewState({type:VIEW,active:true});}this.app.workspace.revealLeaf(leaf);}
   async scan(){
     if(this.stopped||this.seriesEditing)return;
@@ -920,7 +1027,7 @@ class TaskFlow extends Plugin {
     this.recurrenceRun=(async()=>{
       let created=0;const known=new Set(tasks.filter(t=>t.meta.recurrenceSeries&&t.meta.recurrenceDate).map(t=>recurrenceKey(t.meta)));
       for(const source of tasks){
-        if(!source.meta.recurrence||source.meta.recurrence.enabled===false||source.meta.recurrenceSeries)continue;
+        if(source.meta.trashed||!source.meta.recurrence||source.meta.recurrence.enabled===false||source.meta.recurrenceSeries)continue;
         try{
           if(typeof source.meta.id!=='string'||!/^[a-zA-Z0-9_-]+$/.test(source.meta.id))throw new Error('Serienaufgabe benötigt eine gültige ID. Bitte im Editor speichern.');
           for(const day of recurrenceDates(source.meta.recurrence,reference)){
@@ -939,14 +1046,14 @@ class TaskFlow extends Plugin {
   }
   stamp(meta,previous){meta.updated=new Date().toISOString();if(meta.status==='done'&&previous!=='done')meta.completed=meta.updated;if(meta.status!=='done')delete meta.completed;}
   async change(task,mutate,bodyFn=body=>body,expected){
-    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);const previous=meta.status,before=JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]),prior=structuredClone(meta);mutate(meta);if(before!==JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]))protectOccurrence(meta,{meta:prior,body});validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
+    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const previous=meta.status,before=JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]),prior=structuredClone(meta);mutate(meta);if(before!==JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]))protectOccurrence(meta,{meta:prior,body});validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }
   async updateNotes(task,expectedNotes,newNotes){
-    await this.app.vault.process(task.file,raw=>{const {meta,body}=decode(raw);const updated=patchNoteBody(body,expectedNotes,newNotes);protectOccurrence(meta,{meta:structuredClone(meta),body});this.stamp(meta,meta.status);return encode(meta,updated);});
+    await this.app.vault.process(task.file,raw=>{const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const updated=patchNoteBody(body,expectedNotes,newNotes);protectOccurrence(meta,{meta:structuredClone(meta),body});this.stamp(meta,meta.status);return encode(meta,updated);});
     await this.scan();
   }
   async skipOccurrence(task){
-    await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Der Termin wurde inzwischen geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(!meta.recurrence&&!meta.recurrenceSeries)throw new Error('Dies ist kein Serientermin.');if(meta.recurrence&&!meta.recurrenceTemplate)meta.recurrenceTemplate=seriesSnapshot({meta,body});meta.recurrenceSkipped=true;meta.archived=true;this.stamp(meta,meta.status);return encode(meta,body);});await this.scan();
+    await this.app.vault.process(task.file,raw=>{if(raw!==task.raw)throw new Error('Der Termin wurde inzwischen geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb.');if(!meta.recurrence&&!meta.recurrenceSeries)throw new Error('Dies ist kein Serientermin.');if(meta.recurrence&&!meta.recurrenceTemplate)meta.recurrenceTemplate=seriesSnapshot({meta,body});meta.recurrenceSkipped=true;meta.archived=true;this.stamp(meta,meta.status);return encode(meta,body);});await this.scan();
   }
   async saveScopedTask(task,meta,body,scope='single',rule,expectedSource){
     if(!task)return this.saveTask(null,meta,body);
@@ -976,4 +1083,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation,isSeriesTask,tasksForView,seriesOverview,TaskEditor};
+module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation,isSeriesTask,tasksForView,seriesOverview,TaskEditor,trashPlan,restoreTrashPlan,trashGroups,TrashModal,EmptyTrashModal};
