@@ -489,3 +489,37 @@ test('returning to the main menu clears nested navigation and filters without di
  const view=Object.create(core.TaskView.prototype);view.render=()=>{};view.contentEl={scrollTop:500};view.noteDrafts=new Map([['task','unsaved note']]);view.mode='board';view.showArchive=true;view.archiveMode='trash';view.boardMode='series';view.plannerMode='calendar';view.seriesQuery='old';view.query='old';view.tag='work';view.currentPreset='old';view.statusFilter='done';view.priorityFilter='high';view.dueFilter='late';view.filtersOpen=true;
  view.goHome();assert.equal(view.mode,'home');assert.equal(view.showArchive,false);assert.equal(view.archiveMode,'tasks');assert.equal(view.boardMode,'tasks');assert.equal(view.plannerMode,'agenda');for(const key of ['seriesQuery','query','tag','currentPreset','statusFilter','priorityFilter','dueFilter'])assert.equal(view[key],'');assert.equal(view.filtersOpen,false);assert.equal(view.contentEl.scrollTop,0);assert.equal(view.noteDrafts.get('task'),'unsaved note');
 });
+
+test('project input validates names, duplicates and vault-relative notes without rewriting foreign metadata',()=>{
+ assert.equal(core.projectInput({name:' Website ',note:'Projekte/Website.md'},[]).name,'Website');
+ for(const note of ['https://example.com','/private/note','../outside','A/../outside','obsidian://open'])assert.throws(()=>core.projectInput({name:'P',note},[]));
+ assert.throws(()=>core.projectInput({name:''},[]));assert.throws(()=>core.projectInput({name:'a'.repeat(81)},[]));assert.throws(()=>core.projectInput({name:'BÜRO'},[{id:'x',name:'Büro'}]));
+ assert.equal(core.projectInput({name:'Büro'},[{id:'x',name:'Büro'}],'x').name,'Büro');
+ assert.equal(core.projects({projects:[null,{}, {id:'a',name:' A '},{id:'a',name:'duplicate'}]}).length,1);
+});
+test('project progress counts archived completions but excludes trash, skipped and superseded occurrences',()=>{
+ const make=(id,status,extra={})=>({meta:{taskflowProject:id,status,...extra},body:''});
+ const tasks=[make('p','open',{due:'2000-01-01'}),make('p','done',{archived:true}),make('p','open',{trashed:true}),make('p','open',{recurrenceSkipped:true}),make('p','open',{recurrenceSuperseded:true}),make('p','open',{archived:true}),make('other','done')];
+ const summary=core.projectSummary(tasks,'p');assert.equal(summary.total,2);assert.equal(summary.done,1);assert.equal(summary.percent,50);assert.equal(summary.overdue,1);assert.equal(core.projectSummary(tasks,'empty').percent,0);
+});
+test('project settings serialize concurrent saves, preserve settings and protect stale editors and failed saves',async()=>{
+ const {p}=memoryPlugin([]);p.saveData=async()=>{};
+ const ids=await Promise.all([p.storeProject({name:'A'}),p.storeProject({name:'B'})]);assert.equal(p.settings.projects.length,2);assert.equal(p.settings.customSetting,42);
+ const original=structuredClone(core.projects(p.settings)[0]);await p.storeProject({...original,name:'Renamed',archived:true},original);assert.equal(p.settings.projects[0].id,ids[0]);assert.equal(p.settings.projects[0].archived,true);await assert.rejects(()=>p.storeProject({...original,name:'Stale'},original),/inzwischen/);
+ const snapshot=JSON.stringify(p.settings);p.saveData=async()=>{throw new Error('disk full')};await assert.rejects(()=>p.storeProject({name:'Fail'}),/disk full/);assert.equal(JSON.stringify(p.settings),snapshot);
+});
+test('project filtering combines with search and survives saved filters without adopting foreign project links',()=>{
+ const tasks=[{meta:{title:'Alpha',status:'open',taskflowProject:'p',projects:['Legacy']},body:''},{meta:{title:'Alpha',status:'open',projects:['Legacy']},body:''}];
+ assert.equal(core.filterTasks(tasks,{project:'p',query:'alpha'}).length,1);assert.equal(core.filterTasks(tasks,{project:'__none__'}).length,1);assert.equal(core.filterTasks(tasks,{project:'p',query:'missing'}).length,0);
+ const f=core.savedFilters({savedFilters:[{id:'x',name:'Projekt',filters:{project:'p'}}]})[0];assert.equal(f.filters.project,'p');assert.equal(core.filterSnapshot({}).project,'');
+});
+test('series project changes propagate to unprotected future terms and single edits preserve the template',()=>{
+ const tasks=seriesFixture(),source=tasks[0];source.meta.taskflowProject='old';
+ const occurrence=core.recurrenceOccurrence(source,'2026-11-20');assert.equal(occurrence.meta.taskflowProject,'old');assert.equal(core.seriesSnapshot(source).meta.taskflowProject,'old');
+ const plan=core.seriesPlan(tasks,source,{...source.meta,taskflowProject:'new'},source.body,source.meta.recurrence,'new-revision','2026-11-13');
+ assert.ok(plan.some(c=>c.meta.taskflowProject==='new'));for(const change of plan.filter(c=>c.meta.recurrenceSeries===source.meta.id&&!c.meta.recurrenceSuperseded))assert.equal(change.meta.taskflowProject,'new');
+});
+
+test('legacy recurrence templates do not leak a single occurrence project into future terms',()=>{
+ const source=seriesFixture()[0];source.meta.taskflowProject='single-only';source.meta.recurrenceTemplate={meta:{title:'Template',priority:'normal',tags:[]},body:source.body};assert.equal(core.recurrenceOccurrence(source,'2026-11-20').meta.taskflowProject,'');
+});

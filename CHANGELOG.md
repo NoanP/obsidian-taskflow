@@ -4,6 +4,19 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+
+### Added
+- Zentrale Projektübersicht als eigene Kachel im Hauptmenü: Projekte anlegen, bearbeiten, archivieren und wieder aktivieren.
+- Projektname, Beschreibung und optionaler Link zu einer Projektnotiz; stabile Projekt-IDs erhalten Zuordnungen beim Umbenennen.
+- Projektzuordnung im Aufgabeneditor, sichtbarer Projektname auf Karten und kombinierbarer Projektfilter einschließlich gespeicherter Filter.
+- Projektseiten mit neutraler Fortschrittsanzeige, interaktiven Aufgaben und direktem Zugang zu gefiltertem Board und Kalender.
+- Projektzuordnung für wiederkehrende Termine mit bestehenden Schutzregeln für einzelne Ausnahmen und abgeschlossene Termine.
+
+### Compatibility
+- Keine automatische Migration vorhandener Projektlinks anderer Plugins. Originaldateien und fremde Frontmatter-Felder bleiben unverändert.
+- Projektdefinitionen werden lokal mit den Plugin-Einstellungen gespeichert; Aufgaben bleiben Markdown-Dateien. Archivieren eines Projekts verändert keine Aufgaben.
+
 ## [0.14.6] - 2026-11-16
 
 ### Changed

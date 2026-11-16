@@ -1,10 +1,20 @@
 # TaskFlow Kanban für Obsidian
 
+## Projekte (0.15.0)
+
+Die zusätzliche Kachel **Projekte** im Hauptmenü bündelt Vorhaben in einer zentralen Übersicht. **Neues Projekt** erfasst Name, Beschreibung und optional einen relativen Pfad zu einer Projektnotiz (z. B. `Projekte/Website.md`). **Projekt bearbeiten** erlaubt Umbenennen und Archivieren. Stabile IDs erhalten dabei alle Aufgabenzuordnungen; das Archivieren eines Projekts verändert keine Aufgaben oder Termine.
+
+Im Aufgabeneditor wählst du ein Projekt oder **Ohne Projekt**. Aufgabenkarten zeigen die Zuordnung. Der Projektfilter lässt sich mit Suche, Status, Priorität, Tags und Fälligkeit kombinieren und als Filterfavorit speichern. Projektseiten führen direkt zum gefilterten Board oder Kalender. Neue Aufgaben werden weiterhin ausschließlich im Board erfasst.
+
+Der Fortschritt zählt aktive Aufgaben und archivierte Abschlüsse. Papierkorbeinträge, übersprungene und ersetzte Serientermine sowie manuell archivierte offene Aufgaben zählen nicht. Serientermine zählen einzeln; Projektseiten zeigen zunächst maximal 20 Aufgaben und lassen sich erweitern. Neue Serientermine übernehmen das Projekt; Serienänderungen gelten entsprechend der gewählten Option nur für einen Termin oder für ungeschützte Folgetermine.
+
+Projektdefinitionen bleiben lokal in den Plugin-Einstellungen, Zuordnungen stehen als `taskflowProject` im Markdown-Frontmatter. Fremde `projects`-Felder und bestehende Notizen werden nicht automatisch importiert oder umgeschrieben. Projektnotizen werden erst über ihren Button geöffnet; existiert die angegebene Notiz noch nicht, gilt Obsidian-Standardverhalten. Für vollständige Backups neben den Aufgabennotizen auch den TaskFlow-Pluginordner einschließlich `data.json` sichern.
+
 ## Startseite „Mein Tag“ (0.14.6)
 
-Die linke TaskFlow-Seitenleiste entfällt. Auf jeder Unterseite führt **← Zum Hauptmenü** zurück zur Startseite und setzt alte Filter zurück. Die sechs Funktionskacheln sind großzügig gestaltet, mit großen Symbolen und gut lesbaren Beschriftungen.
+Die linke TaskFlow-Seitenleiste entfällt. Auf jeder Unterseite führt **← Zum Hauptmenü** zurück zur Startseite und setzt alte Filter zurück. Die Funktionskacheln sind großzügig gestaltet, mit großen Symbolen und gut lesbaren Beschriftungen.
 
-Die Startseite zeigt links heutige geplante oder fällige Aufgaben und rechts sechs Schnellzugriffe: **Board**, **Kalender**, **Wiederholtermine**, **Statistik**, **Archiv** und **Papierkorb**. **Tag planen** öffnet den Tagesablauf für heute. Die Kacheln führen unmittelbar zur jeweiligen Funktion und setzen alte Filter zurück. Erfasste Aufgaben können direkt geöffnet, geplant oder abgeschlossen werden; die automatische Archivierung bleibt aktiv.
+Die Startseite zeigt links heutige geplante oder fällige Aufgaben und rechts die Schnellzugriffe: **Board**, **Kalender**, **Wiederholtermine**, **Statistik**, **Archiv** und **Papierkorb**. **Tag planen** öffnet den Tagesablauf für heute. Die Kacheln führen unmittelbar zur jeweiligen Funktion und setzen alte Filter zurück. Erfasste Aufgaben können direkt geöffnet, geplant oder abgeschlossen werden; die automatische Archivierung bleibt aktiv.
 
 Überfällige Aufgaben, die nächsten sieben Tage und der Eingang stehen im aufklappbaren Bereich **Weitere Aufgaben**. Vorhandene Filterfavoriten bleiben verfügbar. Die Oberfläche passt sich schmalen Panels an und verwendet neutrale graue Flächen; Farbe bleibt für Status und Priorität reserviert.
 

@@ -53,6 +53,7 @@ function filterTasks(tasks,filters={},reference=today(),index=new WeakMap()){
   return tasks.filter(task=>{
     const meta=task.meta,priority=Object.hasOwn(PRIORITIES,meta.priority)?meta.priority:'normal';
     if(filters.tag&&!(meta.tags||[]).includes(filters.tag)||filters.status&&meta.status!==filters.status||filters.priority&&priority!==filters.priority)return false;
+    if(filters.project&&(filters.project==='__none__'?!!meta.taskflowProject:meta.taskflowProject!==filters.project))return false;
     const date=dateValue(meta.due),due=validDay(date)?date:'';
     if(filters.due==='overdue'&&(!due||due>=reference||meta.status==='done')||filters.due==='today'&&due!==reference||filters.due==='week'&&(!due||due<reference||due>end)||filters.due==='none'&&due)return false;
     if(!terms.length)return true;
@@ -62,13 +63,28 @@ function filterTasks(tasks,filters={},reference=today(),index=new WeakMap()){
   });
 }
 function filterSnapshot(values={}){
-  return {query:typeof values.query==='string'?values.query:'',tag:typeof values.tag==='string'?values.tag:'',status:Object.hasOwn(STATES,values.status)?values.status:'',priority:Object.hasOwn(PRIORITIES,values.priority)?values.priority:'',due:Object.hasOwn(DUE_FILTERS,values.due)?values.due:''};
+  return {project:typeof values.project==='string'?values.project:'',query:typeof values.query==='string'?values.query:'',tag:typeof values.tag==='string'?values.tag:'',status:Object.hasOwn(STATES,values.status)?values.status:'',priority:Object.hasOwn(PRIORITIES,values.priority)?values.priority:'',due:Object.hasOwn(DUE_FILTERS,values.due)?values.due:''};
 }
 function savedFilters(settings){return Array.isArray(settings.savedFilters)?settings.savedFilters.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string'&&p.name.trim()).map(p=>({...p,filters:filterSnapshot(p.filters)})):[];}
+// Project IDs remain stable across renames; foreign `projects` metadata is untouched.
+function projects(settings){
+  const seen=new Set();return (Array.isArray(settings.projects)?settings.projects:[]).filter(p=>p&&typeof p.id==='string'&&p.id&&typeof p.name==='string'&&p.name.trim()&&!seen.has(p.id)&&seen.add(p.id)).map(p=>({...p,name:p.name.trim(),description:typeof p.description==='string'?p.description:'',note:typeof p.note==='string'?p.note:'',archived:!!p.archived}));
+}
+function projectTasks(tasks,id){return tasks.filter(t=>t.meta.taskflowProject===id&&!t.meta.trashed&&!t.meta.recurrenceSkipped&&!t.meta.recurrenceSuperseded&&(!t.meta.archived||t.meta.status==='done'));}
+function projectSummary(tasks,id){const list=projectTasks(tasks,id),done=list.filter(t=>t.meta.status==='done').length;return {total:list.length,done,active:list.length-done,overdue:list.filter(overdue).length,percent:list.length?Math.round(done/list.length*100):0};}
+function projectInput(data,existing,id){
+  const name=String(data.name||'').trim(),description=String(data.description||'').trim(),note=String(data.note||'').trim();
+  if(!name||name.length>80)throw new Error('Bitte einen Projektnamen mit 1–80 Zeichen eingeben.');
+  if(existing.some(p=>p.id!==id&&searchText(p.name)===searchText(name)))throw new Error('Ein Projekt mit diesem Namen existiert bereits.');
+  if(description.length>2000||note.length>500)throw new Error('Beschreibung oder Notizlink ist zu lang.');
+  if(note&&(/^[a-z][a-z0-9+.-]*:/i.test(note)||note.startsWith('/')||note.split('/').includes('..')))throw new Error('Bitte einen relativen Notizpfad im Vault verwenden.');
+  return {name,description,note,archived:!!data.archived};
+}
 const NAVIGATION={board:'Board',planner:'Tagesplaner',stats:'Statistik',archive:'Archiv',tags:'Tags',favorites:'Filterfavoriten'};
 function hiddenNavigation(settings){return Array.isArray(settings.hiddenNavigation)?settings.hiddenNavigation.filter(key=>Object.hasOwn(NAVIGATION,key)):[];}
-function startView(settings){return ['home','board','planner','stats'].includes(settings.startView)?settings.startView:'home';}
+function startView(settings){return ['home','board','planner','stats','projects'].includes(settings.startView)?settings.startView:'home';}
 const HOME_DESTINATIONS={
+  projects:{label:'Projekte',icon:'folder-kanban',description:'Aufgaben bündeln und Fortschritt sehen',mode:'projects'},
   board:{label:'Board',icon:'kanban-square',description:'Einzelaufgaben im Überblick',mode:'board'},
   planner:{label:'Tagesplaner',icon:'list-todo',description:'Den Arbeitstag planen',mode:'planner'},
   calendar:{label:'Kalender',icon:'calendar-days',description:'Termine und Zeitblöcke',mode:'planner',plannerMode:'calendar'},
@@ -303,7 +319,7 @@ function recurrenceDates(rule,reference=today()){
   return result;
 }
 function recurrenceOccurrence(source,day){
-  const rule=source.meta.recurrence,meta=structuredClone(source.meta);if(source.meta.recurrenceTemplate?.meta)Object.assign(meta,structuredClone(source.meta.recurrenceTemplate.meta));
+  const rule=source.meta.recurrence,meta=structuredClone(source.meta);if(source.meta.recurrenceTemplate?.meta){Object.assign(meta,structuredClone(source.meta.recurrenceTemplate.meta));meta.taskflowProject=source.meta.recurrenceTemplate.meta.taskflowProject||'';}
   delete meta.trashed;delete meta.taskflowTrash;delete meta.recurrence;delete meta.completed;delete meta.archived;delete meta.updated;delete meta.recurrenceTemplate;delete meta.recurrenceException;delete meta.recurrenceSkipped;delete meta.recurrenceSuperseded;
   meta.id=(rule.revision?'tf--'+rule.revision:source.meta.id)+'--'+day;meta.recurrenceSeries=source.meta.id;meta.recurrenceDate=day;if(rule.revision)meta.recurrenceRevision=rule.revision;else delete meta.recurrenceRevision;
   meta.status='open';meta.due=day;meta.scheduled=day;meta.durationMinutes=rule.durationMinutes||30;
@@ -318,7 +334,7 @@ function recurrenceLabel(meta){
   return meta.recurrenceSeries?'↻ Serientermin':'';
 }
 function recurrenceKey(meta){return meta.recurrenceSeries+'|'+(meta.recurrenceRevision||'')+'|'+dateValue(meta.recurrenceDate);}
-function seriesSnapshot(task){return {meta:{title:task.meta.title,priority:task.meta.priority||'normal',tags:structuredClone(task.meta.tags||[])},body:task.body};}
+function seriesSnapshot(task){return {meta:{title:task.meta.title,priority:task.meta.priority||'normal',taskflowProject:task.meta.taskflowProject||'',tags:structuredClone(task.meta.tags||[])},body:task.body};}
 function protectOccurrence(meta,task){if(meta.recurrence&&!meta.recurrenceTemplate)meta.recurrenceTemplate=seriesSnapshot(task);if(meta.recurrence||meta.recurrenceSeries)meta.recurrenceException=true;}
 function mergeSeriesBody(template,body){
   const completed=new Map();for(const sub of subtasks(body)){const key=sub[2].trim();if(!completed.has(key))completed.set(key,[]);completed.get(key).push(sub[1]!==' ');}
@@ -344,7 +360,7 @@ function seriesPlan(tasks,selected,data,body,rule,revision,reference=today()){
     if(protectedTasks.includes(task))continue;
     const day=dateValue(task.meta.recurrenceDate),meta=structuredClone(task.meta);
     if(dates.has(day)){
-      const occurrence=recurrenceOccurrence({meta:next,body},day);for(const key of ['title','priority','tags','due','scheduled','durationMinutes','recurrenceSeries','recurrenceDate','recurrenceRevision'])meta[key]=structuredClone(occurrence.meta[key]);
+      const occurrence=recurrenceOccurrence({meta:next,body},day);for(const key of ['title','priority','tags','taskflowProject','due','scheduled','durationMinutes','recurrenceSeries','recurrenceDate','recurrenceRevision'])meta[key]=structuredClone(key==='taskflowProject'?(occurrence.meta[key]||''):occurrence.meta[key]);
       if(occurrence.meta.scheduledTime)meta.scheduledTime=occurrence.meta.scheduledTime;else delete meta.scheduledTime;
       changes.push({task,meta,body:mergeSeriesBody(occurrence.body,task.body)});
     }else{meta.archived=true;meta.recurrenceSuperseded=true;changes.push({task,meta,body:task.body});}
@@ -394,6 +410,22 @@ class EmptyTrashModal extends Modal{
   }
   onClose(){this.contentEl.empty();}
 }
+class ProjectEditor extends Modal{
+  constructor(plugin,project=null){super(plugin.app);this.plugin=plugin;this.project=project;}
+  onOpen(){
+    const c=this.contentEl;c.addClass('tf-editor-modal');this.modalEl.addClass('tf-task-modal');c.createEl('h2',{text:this.project?'Projekt bearbeiten':'Neues Projekt'});
+    const form=c.createEl('form'),data=this.project?structuredClone(this.project):{name:'',description:'',note:'',archived:false};
+    for(const [key,label,placeholder]of [['name','Projektname','Zum Beispiel: Website'],['description','Beschreibung','Ziel und nächste Schritte'],['note','Projektnotiz','Zum Beispiel: Projekte/Website.md']]){
+      const row=form.createEl('label',{cls:'tf-form-field'});row.createSpan({text:label});const input=row.createEl(key==='description'?'textarea':'input',{attr:{'aria-label':label},placeholder});input.value=data[key];input.maxLength=key==='name'?80:key==='note'?500:2000;if(key==='description')input.rows=4;input.oninput=()=>data[key]=input.value;
+    }
+    form.createEl('p',{text:'Projektnotiz: optionaler Pfad zu einer vorhandenen Notiz im Vault. Aufgaben ordnest du im Aufgabeneditor zu.',cls:'tf-muted'});
+    const row=form.createEl('label',{cls:'tf-form-field'});row.createSpan({text:'Projekt archiviert'});const archived=row.createEl('input',{type:'checkbox',attr:{'aria-label':'Projekt archiviert'}});archived.checked=data.archived;archived.onchange=()=>data.archived=archived.checked;
+    form.createEl('p',{text:'Archivieren blendet das Projekt aus der aktiven Projektübersicht aus. Aufgaben behalten ihren Status und ihre Termine.',cls:'tf-muted'});
+    const error=form.createDiv({cls:'tf-form-error',attr:{role:'alert'}});error.hidden=true;const actions=form.createDiv({cls:'tf-editor-footer'});const cancel=button(actions,'Abbrechen',()=>this.close(),'tf-editor-cancel');cancel.type='button';const save=actions.createEl('button',{type:'submit',text:'Projekt speichern',cls:'tf-editor-save'});
+    form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{await this.plugin.storeProject(data,this.project);this.close();}catch(e){error.setText(e.message);error.hidden=false;save.disabled=false;}};
+  }
+  onClose(){this.contentEl.empty();}
+}
 class TaskEditor extends Modal {
   constructor(plugin,task,status='open',scheduled='',priority='normal',initialTime='',options={}){super(plugin.app);this.plugin=plugin;this.task=task;this.initialStatus=status;this.initialScheduled=scheduled;this.initialPriority=priority;this.initialTime=initialTime;this.options=options;}
   onOpen(){
@@ -413,6 +445,10 @@ class TaskEditor extends Modal {
     dropdown('Status',STATES,data.status,v=>data.status=v);dropdown('Priorität',PRIORITIES,data.priority||'normal',v=>data.priority=v);
     const dueInput=field(details,'Fällig am','date',dateValue(data.due),v=>data.due=v);
     field(details,'Tags','text',(data.tags||[]).join(', '),v=>data.tags=[...new Set(v.split(',').map(t=>t.trim().replace(/^#/, '')).filter(Boolean))],'arbeit, privat, projekt');
+    const projectRow=form.createEl('label',{cls:'tf-form-field'});projectRow.createSpan({text:'Projekt'});const projectSelect=projectRow.createEl('select',{attr:{'aria-label':'Projekt'}});projectSelect.createEl('option',{value:'',text:'Ohne Projekt'});
+    const knownProjects=projects(this.plugin.settings);for(const project of knownProjects.filter(p=>!p.archived||p.id===data.taskflowProject))projectSelect.createEl('option',{value:project.id,text:project.name+(project.archived?' · archiviert':'')});
+    if(data.taskflowProject&&!knownProjects.some(p=>p.id===data.taskflowProject))projectSelect.createEl('option',{value:data.taskflowProject,text:'Unbekanntes Projekt · '+data.taskflowProject});
+    projectSelect.value=data.taskflowProject||'';projectSelect.onchange=()=>data.taskflowProject=projectSelect.value;
     const planning=form.createEl('details',{cls:'tf-form-planning'});planning.open=!!dateValue(data.scheduled);planning.createEl('summary',{text:'Tagesplanung · optional'});
     planning.createEl('p',{text:'Plane einen Arbeitstag und bei Bedarf einen Zeitblock. Die Fälligkeit bleibt eine eigene Deadline.'});
     const planFields=planning.createDiv({cls:'tf-planning-fields'});
@@ -482,7 +518,7 @@ class TaskEditor extends Modal {
   onClose(){this.contentEl.empty();}
 }
 class TaskView extends ItemView {
-  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.currentPreset='';this.searchIndex=new WeakMap();this.mode=startView(plugin.settings);this.homeExpanded=new Set();this.boardMode='tasks';this.seriesQuery='';this.expandedSeries=new Set();this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.archiveMode='tasks';this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
+  constructor(leaf,plugin){super(leaf);this.plugin=plugin;this.projectFilter='';this.projectId='';this.projectArchive=false;this.projectExpanded=false;this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.currentPreset='';this.searchIndex=new WeakMap();this.mode=startView(plugin.settings);this.homeExpanded=new Set();this.boardMode='tasks';this.seriesQuery='';this.expandedSeries=new Set();this.plannerDate=today();this.plannerMode='agenda';this.calendarSpan='week';this.showArchive=false;this.archiveMode='tasks';this.statsDays=14;this.expandedTasks=new Set();this.noteDrafts=new Map();this.animations=new Set();this.closed=false;}
   getViewType(){return VIEW;} getDisplayText(){return 'TaskFlow';} getIcon(){return 'kanban-square';}
   async onOpen(){this.closed=false;this.render();}
   async onClose(){clearTimeout(this.searchTimer);this.calendarPointerCleanup?.();this.closed=true;for(const a of this.animations)a.cancel();this.animations.clear();}
@@ -528,7 +564,7 @@ class TaskView extends ItemView {
     const homeButton=button(navigation,this.mode==='home'&&!this.showArchive?'Hauptmenü':'← Zum Hauptmenü',()=>this.goHome(),'tf-home-return');
     if(this.mode==='home'&&!this.showArchive){homeButton.disabled=true;homeButton.setAttribute('aria-current','page');}
     const header=main.createDiv({cls:'tf-header'}),title=header.createDiv();
-    title.createEl('h1',{text:this.showArchive?(this.archiveMode==='trash'?'Papierkorb':this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='home'?'Mein Tag':this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':this.boardMode==='series'?'Wiederholtermine':'Meine Aufgaben'});
+    title.createEl('h1',{text:this.showArchive?(this.archiveMode==='trash'?'Papierkorb':this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='home'?'Mein Tag':this.mode==='projects'?'Projekte':this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':this.boardMode==='series'?'Wiederholtermine':'Meine Aufgaben'});
     title.createEl('p',{text:new Date().toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'})+' · Mein Arbeitsbereich',cls:'tf-muted tf-subtitle'});
     const managingSeries=this.mode==='board'&&!this.showArchive&&this.boardMode==='series';
     if(canCreateTasks(this.mode,this.showArchive))button(header,managingSeries?'+ Neue Wiederholung':'+ Neue Aufgabe',()=>new TaskEditor(this.plugin,null,'open',managingSeries?today():'','normal','',{repeat:managingSeries}).open(),'tf-primary');
@@ -545,13 +581,13 @@ class TaskView extends ItemView {
     focusBar.createSpan({text:this.showArchive?`${all.length} archivierte Aufgaben`:dueToday.length?dueToday.map(t=>t.meta.title).slice(0,2).join(' · '):'Keine Aufgaben heute fällig',cls:'tf-focus-text'});
     focusBar.createSpan({text:s.overdue?`${s.overdue} überfällig`:'Keine überfälligen Aufgaben',cls:s.overdue?'tf-due tf-due-late':'tf-muted'});
     }
-    if(this.showArchive&&this.archiveMode==='trash'){this.renderTrash(main);}else if(this.mode==='home'&&!this.showArchive){this.renderHome(main,all,presets);}else if(managingSeries){this.renderSeries(main);}else{
+    if(this.mode==='projects'){this.renderProjects(main);}else if(this.showArchive&&this.archiveMode==='trash'){this.renderTrash(main);}else if(this.mode==='home'&&!this.showArchive){this.renderHome(main,all,presets);}else if(managingSeries){this.renderSeries(main);}else{
     const toolbar=main.createDiv({cls:'tf-toolbar'});
     toolbar.createSpan({text:this.mode==='planner'?'FOKUS FÜR DEN TAG · ÜBERBLICK FÜR DIE WOCHE':this.mode==='stats'?'STATISTIK':'KANBAN / '+(this.showArchive?'ARCHIV':'ALLE AUFGABEN'),cls:'tf-eyebrow'});
     if(this.showArchive)button(toolbar,this.mode==='stats'?'Kanban':'Statistik',()=>{this.mode=this.mode==='stats'?'board':'stats';this.render();},'tf-text-button');
     const filters=toolbar.createDiv({cls:'tf-filters'});
     const search=filters.createEl('input',{type:'search',placeholder:'Todos durchsuchen …',cls:'tf-search'});search.value=this.query;search.dataset.tfFocus='search';search.setAttribute('aria-label','Aufgaben suchen');search.setAttribute('title','Titel, Notizen, Teilaufgaben, Tags und Daten durchsuchen · mehrere Begriffe kombinieren');
-    const activeCount=[this.tag,this.statusFilter,this.priorityFilter,this.dueFilter].filter(Boolean).length;
+    const activeCount=[this.projectFilter,this.tag,this.statusFilter,this.priorityFilter,this.dueFilter].filter(Boolean).length;
     const toggle=button(filters,'Filter'+(activeCount?' · '+activeCount:''),()=>{this.filtersOpen=!this.filtersOpen;fields.hidden=!this.filtersOpen;toggle.setAttribute('aria-expanded',String(this.filtersOpen));},'tf-filter-toggle');toggle.setAttribute('aria-expanded',String(this.filtersOpen));
     const fields=filters.createDiv({cls:'tf-filter-fields'});fields.hidden=!this.filtersOpen;
     const dropdown=(name,values,key)=>{
@@ -560,6 +596,7 @@ class TaskView extends ItemView {
     };
     if(this.tag&&!tags.includes(this.tag))tags.push(this.tag);
     dropdown('Tag',{'':'Alle Tags',...Object.fromEntries(tags.map(tag=>[tag,'#'+tag]))},'tag');
+    dropdown('Projekt',{'':'Alle Projekte',__none__:'Ohne Projekt',...Object.fromEntries(projects(this.plugin.settings).map(p=>[p.id,p.name+(p.archived?' · archiviert':'')]))},'projectFilter');
     dropdown('Status',{'':'Alle Status',...STATES},'statusFilter');
     dropdown('Priorität',{'':'Alle Prioritäten',...PRIORITIES},'priorityFilter');
     dropdown('Fälligkeit',DUE_FILTERS,'dueFilter').setAttribute('title','Nächste 7 Tage: heute bis einschließlich '+shiftDay(today(),6));
@@ -576,6 +613,34 @@ class TaskView extends ItemView {
     c.scrollTop=scroll;
     if(focus){const target=c.querySelector(`[data-tf-focus="${focus.key}"]`);if(target){target.focus({preventScroll:true});if((target.type==='search'||target.tagName==='TEXTAREA')&&Number.isInteger(focus.start))target.setSelectionRange(focus.start,focus.end);}}
     this.animateMoves(previous);
+  }
+  renderProjects(c){
+    const list=projects(this.plugin.settings),selected=list.find(p=>p.id===this.projectId),toolbar=c.createDiv({cls:'tf-toolbar'});
+    if(selected){
+      button(toolbar,'← Alle Projekte',()=>{this.projectId='';this.projectExpanded=false;this.render();},'tf-text-button');
+      button(toolbar,'Projekt bearbeiten',()=>new ProjectEditor(this.plugin,selected).open(),'tf-primary');
+      c.createEl('h2',{text:selected.name,cls:'tf-project-heading'});if(selected.description)c.createEl('p',{text:selected.description,cls:'tf-project-description'});
+      if(selected.note)button(c,'Projektnotiz öffnen',()=>this.app.workspace.openLinkText(selected.note,'',false),'tf-primary');
+      const summary=projectSummary(this.plugin.tasks,selected.id);this.projectProgress(c,summary);
+      const actions=c.createDiv({cls:'tf-preset-actions'});button(actions,'Aufgaben im Board',()=>{Object.assign(this,homeDestination('board'));this.resetFilters();this.projectFilter=selected.id;this.render();},'tf-text-button');button(actions,'Termine im Kalender',()=>{Object.assign(this,homeDestination('calendar'));this.resetFilters();this.projectFilter=selected.id;this.render();},'tf-text-button');
+      c.createEl('p',{text:'Serientermine werden im Fortschritt einzeln gezählt. Das Board zeigt weiterhin nur Einzelaufgaben; alle datierten Aufgaben findest du im Kalender.',cls:'tf-muted'});
+      const tasks=projectTasks(this.plugin.tasks,selected.id).sort((a,b)=>Number(a.meta.status==='done')-Number(b.meta.status==='done')||(dateValue(a.meta.due)||'9999').localeCompare(dateValue(b.meta.due)||'9999')||a.file.path.localeCompare(b.file.path));
+      if(!tasks.length)c.createDiv({text:'Noch keine Aufgaben zugeordnet. Öffne im Board eine Aufgabe und wähle dieses Projekt.',cls:'tf-filter-empty'});
+      for(const task of this.projectExpanded?tasks:tasks.slice(0,20)){
+        if(task.meta.status!=='done')this.homeTask(c,task);else{const row=c.createDiv({cls:'tf-project-completed'});button(row,task.meta.title,()=>new TaskEditor(this.plugin,task).open(),'tf-text-button');row.createSpan({text:'Erledigt · Archiv',cls:'tf-muted'});}
+      }
+      if(tasks.length>20)button(c,this.projectExpanded?'Weniger anzeigen':'Alle '+tasks.length+' Aufgaben anzeigen',()=>{this.projectExpanded=!this.projectExpanded;this.render();},'tf-text-button');return;
+    }
+    if(this.projectId){this.projectId='';c.createEl('p',{text:'Dieses Projekt ist nicht mehr verfügbar.',cls:'tf-muted'});}
+    button(toolbar,'+ Neues Projekt',()=>new ProjectEditor(this.plugin).open(),'tf-primary');const toggle=button(toolbar,this.projectArchive?'Aktive Projekte':'Archivierte Projekte',()=>{this.projectArchive=!this.projectArchive;this.render();},'tf-text-button');toggle.setAttribute('aria-pressed',String(!!this.projectArchive));
+    c.createEl('p',{text:'Bündle Aufgaben nach Vorhaben. Die Fortschrittsanzeige zählt aktive Aufgaben und archivierte Abschlüsse; gelöschte und übersprungene Termine bleiben ausgeschlossen.',cls:'tf-muted'});
+    const visible=list.filter(p=>p.archived===!!this.projectArchive).sort((a,b)=>a.name.localeCompare(b.name)),grid=c.createDiv({cls:'tf-project-grid'});
+    if(!visible.length)grid.createDiv({text:this.projectArchive?'Keine archivierten Projekte.':'Noch keine Projekte. Lege dein erstes Projekt an.',cls:'tf-filter-empty'});
+    for(const project of visible){const card=grid.createEl('section',{cls:'tf-project-card'});button(card,project.name,()=>{this.projectId=project.id;this.projectExpanded=false;this.render();},'tf-project-title');if(project.description)card.createEl('p',{text:project.description,cls:'tf-project-description'});this.projectProgress(card,projectSummary(this.plugin.tasks,project.id));button(card,'Projekt öffnen →',()=>{this.projectId=project.id;this.projectExpanded=false;this.render();},'tf-text-button');}
+  }
+  projectProgress(c,summary){
+    const box=c.createDiv({cls:'tf-project-progress'});box.createEl('p',{text:summary.done+' von '+summary.total+' erledigt · '+summary.active+' aktiv'+(summary.overdue?' · '+summary.overdue+' überfällig':'')});
+    const progress=box.createEl('progress',{attr:{max:'100',value:String(summary.percent),'aria-label':'Projektfortschritt: '+summary.percent+' Prozent'}});progress.value=summary.percent;box.createSpan({text:summary.percent+' %',cls:'tf-muted'});
   }
   renderTrash(c){
     const trash=this.plugin.tasks.filter(t=>t.meta.trashed),header=c.createDiv({cls:'tf-toolbar'});header.createSpan({text:trash.length+' gelöschte Aufgaben',attr:{role:'status','aria-live':'polite'}});
@@ -612,8 +677,8 @@ class TaskView extends ItemView {
       if(expanded){const list=section.createDiv({cls:'tf-series-terms'});for(const task of group.terms){const row=list.createDiv({cls:'tf-series-term'});row.createSpan({text:(dateValue(task.meta.scheduled)||dateValue(task.meta.due)||'Ohne Datum')+(task.meta.scheduledTime?' · '+task.meta.scheduledTime:'')});row.createSpan({text:task.meta.recurrenceSkipped?'Übersprungen':task.meta.recurrenceSuperseded?'Ersetzt':task.meta.archived?'Archiviert':STATES[task.meta.status]});if(task.meta.recurrenceException)row.createSpan({text:'Individuell geändert'});button(row,'Einzeltermin bearbeiten',()=>new TaskEditor(this.plugin,task).open(),'tf-text-button');}}
     }
   }
-  filterValues(){return filterSnapshot({query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter});}
-  applyFilter(preset){this.boardMode='tasks';const f=filterSnapshot(preset.filters);this.query=f.query;this.tag=f.tag;this.statusFilter=f.status;this.priorityFilter=f.priority;this.dueFilter=f.due;this.currentPreset=preset.id;if(this.mode==='home')this.mode='board';this.render();}
+  filterValues(){return filterSnapshot({project:this.projectFilter,query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter});}
+  applyFilter(preset){this.boardMode='tasks';const f=filterSnapshot(preset.filters);this.query=f.query;this.projectFilter=f.project;this.tag=f.tag;this.statusFilter=f.status;this.priorityFilter=f.priority;this.dueFilter=f.due;this.currentPreset=preset.id;if(this.mode==='home')this.mode='board';this.render();}
   renderHome(c,tasks,presets){
     const overview=homeOverview(tasks),summary=c.createDiv({cls:'tf-day-summary'});
     const timed=overview.today.filter(t=>dateValue(t.meta.scheduled)===today()&&timeMinutes(t.meta.scheduledTime)!==null).length;
@@ -627,7 +692,7 @@ class TaskView extends ItemView {
     button(focus,'Alle Aufgaben öffnen →',()=>this.openHomeDestination('board'),'tf-text-button');
     const shortcuts=layout.createEl('section',{cls:'tf-day-shortcuts',attr:{'aria-label':'Schnellzugriff'}});shortcuts.createEl('h2',{text:'Schnellzugriff',cls:'tf-day-heading'});
     const tiles=shortcuts.createDiv({cls:'tf-day-tile-grid'});
-    for(const key of ['board','calendar','series','stats','archive','trash']){
+    for(const key of ['board','calendar','projects','series','stats','archive','trash']){
       const destination=HOME_DESTINATIONS[key],tile=button(tiles,'',()=>this.openHomeDestination(key),'tf-day-tile');tile.setAttribute('aria-label',destination.label+' öffnen');
       const icon=tile.createSpan({cls:'tf-day-tile-icon',attr:{'aria-hidden':'true'}});if(typeof setIcon==='function')setIcon(icon,destination.icon);
       tile.createSpan({text:destination.label,cls:'tf-day-tile-title'});tile.createSpan({text:destination.description,cls:'tf-day-tile-description'});
@@ -651,7 +716,7 @@ class TaskView extends ItemView {
     }
   }
   goHome(){this.mode='home';this.showArchive=false;this.archiveMode='tasks';this.boardMode='tasks';this.plannerMode='agenda';this.seriesQuery='';this.resetFilters();this.contentEl.scrollTop=0;}
-  openHomeDestination(key){Object.assign(this,homeDestination(key));if(this.mode==='planner')this.plannerDate=today();this.resetFilters();}
+  openHomeDestination(key){Object.assign(this,homeDestination(key));if(this.mode==='planner')this.plannerDate=today();if(this.mode==='projects'){this.projectId='';this.projectArchive=false;this.projectExpanded=false;}this.resetFilters();if(this.contentEl)this.contentEl.scrollTop=0;}
   homeTask(parent,task){
     const priority=Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal';
     const row=parent.createDiv({cls:`tf-home-task tf-status-${task.meta.status} tf-priority-${priority}`});
@@ -664,7 +729,7 @@ class TaskView extends ItemView {
     if(validDay(dateValue(task.meta.due)))details.createSpan({text:'Fällig '+dateValue(task.meta.due)});
     const plan=button(row,'Planen',()=>new TaskEditor(this.plugin,task).open(),'tf-text-button');plan.setAttribute('aria-label',task.meta.title+' planen und bearbeiten');
   }
-  resetFilters(){this.currentPreset='';this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.render();}
+  resetFilters(){this.projectFilter='';this.currentPreset='';this.query='';this.tag='';this.statusFilter='';this.priorityFilter='';this.dueFilter='';this.filtersOpen=false;this.render();}
   renderResults(c,all){
     this.calendarPointerCleanup?.();c.empty();
     all=tasksForView(all,this.mode,this.plannerMode,this.showArchive);
@@ -672,10 +737,10 @@ class TaskView extends ItemView {
       const note=c.createDiv({cls:'tf-filter-info'});note.createSpan({text:'Serientermine findest du auf der Startseite und im Kalender.'});
       button(note,'Kalender öffnen',()=>{this.mode='planner';this.plannerMode='calendar';this.plannerDate=today();this.render();},'tf-text-button');
     }
-    const tasks=filterTasks(all,{query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter},today(),this.searchIndex);
-    const active=!!(this.query.trim()||this.tag||this.statusFilter||this.priorityFilter||this.dueFilter);
+    const tasks=filterTasks(all,{project:this.projectFilter,query:this.query,tag:this.tag,status:this.statusFilter,priority:this.priorityFilter,due:this.dueFilter},today(),this.searchIndex);
+    const active=!!(this.projectFilter||this.query.trim()||this.tag||this.statusFilter||this.priorityFilter||this.dueFilter);
     const info=c.createDiv({cls:'tf-filter-info'});
-    const labels=[this.tag?'#'+this.tag:'',STATES[this.statusFilter],PRIORITIES[this.priorityFilter],this.dueFilter?DUE_FILTERS[this.dueFilter]:''].filter(Boolean);
+    const labels=[this.projectFilter==='__none__'?'Ohne Projekt':projects(this.plugin.settings).find(p=>p.id===this.projectFilter)?.name,this.tag?'#'+this.tag:'',STATES[this.statusFilter],PRIORITIES[this.priorityFilter],this.dueFilter?DUE_FILTERS[this.dueFilter]:''].filter(Boolean);
     info.createSpan({text:tasks.length+' von '+all.length+' Aufgaben'+(labels.length?' · '+labels.join(' · '):''),attr:{role:'status','aria-live':'polite'}});
     if(active)button(info,'Zurücksetzen',()=>this.resetFilters(),'tf-text-button');
     if(active&&!tasks.length){c.createDiv({text:'Keine passenden Aufgaben. Ändere die Suche oder setze die Filter zurück.',cls:'tf-filter-empty'});if(this.mode==='board')return;}
@@ -722,6 +787,7 @@ class TaskView extends ItemView {
     const top=card.createDiv({cls:'tf-card-top'}),status=top.createSpan({cls:'tf-status-label'});status.createSpan({cls:'tf-status-dot',attr:{'aria-hidden':'true'}});status.appendText(STATES[t.meta.status]);
     top.createSpan({text:(priority==='high'?'↑ ':priority==='low'?'↓ ':'– ')+PRIORITIES[priority],cls:'tf-priority-label',attr:{'aria-label':'Priorität: '+PRIORITIES[priority]}});
     button(card,t.meta.title,()=>new TaskEditor(this.plugin,t).open(),'tf-title');
+    if(t.meta.taskflowProject){const project=projects(this.plugin.settings).find(p=>p.id===t.meta.taskflowProject);card.createDiv({text:'Projekt · '+(project?.name||'Unbekanntes Projekt'),cls:'tf-muted tf-card-project'});}
     if((t.meta.tags||[]).length){const tags=card.createDiv({cls:'tf-tags'});for(const tag of t.meta.tags)tags.createSpan({text:'#'+tag});}
     const due=duePresentation(t);card.createDiv({text:due.label,cls:'tf-due tf-due-'+due.kind});
     const repeatLabel=recurrenceLabel(t.meta);if(repeatLabel)card.createDiv({text:repeatLabel,cls:'tf-recurrence-label'});
@@ -967,7 +1033,7 @@ class TaskFlow extends Plugin {
     this.addSettingTab(new class extends PluginSettingTab{display(){
       const c=this.containerEl;c.empty();c.createEl('h2',{text:'TaskFlow'});c.createEl('p',{text:'Aufgaben liegen als Markdown im Ordner '+this.plugin.settings.folder+'. Bestehende Aufgaben anderer Plugins werden nicht automatisch importiert.'});
       const label=c.createEl('label',{cls:'setting-item'});label.createSpan({text:'Startansicht bei einem neuen TaskFlow-Tab'});const select=label.createEl('select',{attr:{'aria-label':'Startansicht'}});
-      for(const [value,text]of Object.entries({home:'Startseite',board:'Board',planner:'Tagesplaner',stats:'Statistik'}))select.createEl('option',{value,text});select.value=startView(this.plugin.settings);
+      for(const [value,text]of Object.entries({home:'Startseite',board:'Board',planner:'Tagesplaner',stats:'Statistik',projects:'Projekte'}))select.createEl('option',{value,text});select.value=startView(this.plugin.settings);
       select.onchange=async()=>{select.disabled=true;try{await this.plugin.updateSettings(settings=>{settings.startView=select.value;});}catch(e){select.value=startView(this.plugin.settings);report(e);}finally{select.disabled=false;}};
       c.createEl('h3',{text:'Startseite'});
       for(const [key,name]of [['favorites','Gespeicherte Filter auf der Startseite']]){
@@ -981,6 +1047,14 @@ class TaskFlow extends Plugin {
   }
   async updateSettings(mutate){
     const run=(this.settingsQueue||Promise.resolve()).catch(()=>{}).then(async()=>{const next=structuredClone(this.settings);const result=mutate(next);await this.saveData(next);this.settings=next;for(const leaf of this.app.workspace.getLeavesOfType(VIEW))leaf.view.render();return result;});this.settingsQueue=run;return run;
+  }
+  async storeProject(data,original=null){
+    return this.updateSettings(settings=>{
+      const list=projects(settings),current=original?list.find(p=>p.id===original.id):null;
+      if(original&&(!current||JSON.stringify(current)!==JSON.stringify(original)))throw new Error('Das Projekt wurde inzwischen geändert. Bitte erneut öffnen.');
+      const fields=projectInput(data,list,original?.id),id=original?.id||crypto.randomUUID();
+      if(current)Object.assign(current,fields);else list.push({id,...fields});settings.projects=list;return id;
+    });
   }
   async storeFilter(name,filters,id){
     return this.updateSettings(settings=>{const presets=savedFilters(settings),title=filterName(name,presets,id);if(id){const found=presets.find(p=>p.id===id);if(!found)throw new Error('Der gespeicherte Filter existiert nicht mehr.');found.name=title;}
@@ -1066,7 +1140,7 @@ class TaskFlow extends Plugin {
     else{delete meta.completed;if(previous==='done')meta.archived=false;}
   }
   async change(task,mutate,bodyFn=body=>body,expected){
-    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const previous=meta.status,before=JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]),prior=structuredClone(meta);mutate(meta);if(before!==JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]))protectOccurrence(meta,{meta:prior,body});validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
+    await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const previous=meta.status,before=JSON.stringify([meta.title,meta.priority,meta.tags,meta.taskflowProject,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]),prior=structuredClone(meta);mutate(meta);if(before!==JSON.stringify([meta.title,meta.priority,meta.tags,meta.taskflowProject,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]))protectOccurrence(meta,{meta:prior,body});validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }
   async updateNotes(task,expectedNotes,newNotes){
     await this.app.vault.process(task.file,raw=>{const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const updated=patchNoteBody(body,expectedNotes,newNotes);protectOccurrence(meta,{meta:structuredClone(meta),body});this.stamp(meta,meta.status);return encode(meta,updated);});
@@ -1103,4 +1177,4 @@ class TaskFlow extends Plugin {
   }
 }
 module.exports=TaskFlow;
-module.exports.testing={today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation,isSeriesTask,tasksForView,seriesOverview,TaskEditor,trashPlan,restoreTrashPlan,trashGroups,TrashModal,EmptyTrashModal,homeDestination,canCreateTasks};
+module.exports.testing={projects,projectInput,projectTasks,projectSummary,ProjectEditor,today,dateValue,decode,encode,overdue,summarize,subtasks,toggleSubtask,STATES,PRIORITIES,duePresentation,completionDay,moveFrames,TaskView,analytics,calendarDays,editorSubtasks,editorBody,validDay,shiftDay,plannerWeek,timeMinutes,durationMinutes,clockTime,validatePlanning,assignDay,dayPlan,noteField,patchNoteBody,calendarMove,calendarEvents,calendarBounds,calendarDropMinute,calendarTasks,validateRecurrence,recurrenceDates,recurrenceOccurrence,recurrenceLabel,validateTaskFields,filterTasks,searchText,filterSnapshot,savedFilters,filterName,seriesPlan,seriesSnapshot,recurrenceKey,mergeSeriesBody,homeOverview,startView,hiddenNavigation,isSeriesTask,tasksForView,seriesOverview,TaskEditor,trashPlan,restoreTrashPlan,trashGroups,TrashModal,EmptyTrashModal,homeDestination,canCreateTasks};
