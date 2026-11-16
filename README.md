@@ -1,5 +1,13 @@
 # TaskFlow Kanban für Obsidian
 
+## Startseite „Mein Tag“ (0.14.5)
+
+Die Startseite zeigt links heutige geplante oder fällige Aufgaben und rechts sechs Schnellzugriffe: **Board**, **Kalender**, **Wiederholtermine**, **Statistik**, **Archiv** und **Papierkorb**. **Tag planen** öffnet den Tagesablauf für heute. Die Kacheln führen unmittelbar zur jeweiligen Funktion und setzen alte Filter zurück. Erfasste Aufgaben können direkt geöffnet, geplant oder abgeschlossen werden; die automatische Archivierung bleibt aktiv.
+
+Überfällige Aufgaben, die nächsten sieben Tage und der Eingang stehen im aufklappbaren Bereich **Weitere Aufgaben**. Vorhandene Filterfavoriten bleiben verfügbar. Die Oberfläche passt sich schmalen Panels an und verwendet neutrale graue Flächen; Farbe bleibt für Status und Priorität reserviert.
+
+**Neue Aufgabe** ist ausschließlich im aktiven **Board** sichtbar, **Neue Wiederholung** unter dessen Serien-Reiter. Kalender, Tagesplaner, Statistik, Archiv und Startseite enthalten keine Erstellen-Schaltflächen. Auch ein Klick auf eine leere Kalenderfläche erstellt keine Aufgabe mehr; vorhandene Blöcke bleiben verschiebbar und bearbeitbar. Der Tastaturbefehl **Neue Aufgabe im Board** öffnet erst das Board und dann die Erfassung.
+
 ## Erledigte Aufgaben automatisch archivieren (0.14.4)
 
 Beim Wechsel zu **Erledigt** wird die Aufgabe sofort archiviert – im Board, im Kalender, auf der Startseite und im Editor. Im aktiven Board bleibt deshalb keine abgeschlossene Karte stehen. Du findest sie unter **Archiv → Archivierte Aufgaben** mit ihrem Status und Abschlussdatum. Notizen, Teilaufgaben, Fälligkeit und Planungsdatum bleiben erhalten.
@@ -165,7 +173,7 @@ Die Anzeige schreibt keine Planungsdaten in deine Notizen. Titel öffnen die Ori
 
 Unter **Tagesplaner → Kalender** findest du eine Wochenansicht mit Zeitraster. Mit **Tag** wechselst du zur Ansicht des gewählten Tages; ein Klick auf einen Tageskopf öffnet diesen Tag ebenfalls. Die Pfeile oben blättern im Wochenmodus um eine Woche, sonst um einen Tag.
 
-- **Freie Zeit anklicken:** Der Aufgabeneditor öffnet sich mit Planungsdatum und Startzeit des halbstündigen Felds. Titel ergänzen und speichern.
+- **Neue Aufgabe:** Im Board erfassen und anschließend im Tagesplaner einplanen. Leere Kalenderflächen öffnen keinen Editor.
 - **Todo-Titel anklicken:** Die Aufgabe inklusive Notizen, Teilaufgaben und Planung bearbeiten.
 - **Kreis neben dem Todo:** Als erledigt markieren oder wieder öffnen. Erledigte Blöcke erscheinen gedämpft und durchgestrichen.
 - **Block ziehen:** Auf einen anderen Tag oder eine andere Uhrzeit legen. Die Startzeit wird auf 15 Minuten gerundet; die Dauer bleibt erhalten. Ungültige Zeitblöcke außerhalb eines Tages werden nicht gespeichert.
@@ -205,7 +213,7 @@ Auf der Karte zeigt ein eigener Button **▸ Teilaufgaben · 1/3** den Fortschri
 Über die Seitenleiste **Tagesplaner** oder die Befehlspalette **TaskFlow Kanban: Tagesplaner öffnen** aufrufen.
 
 - Oben den Planungstag auswählen oder mit Heute und den Pfeilen navigieren. Die Wochenübersicht zeigt Montag bis Sonntag mit der Anzahl eingeplanter Aufgaben. Suche und Tagfilter gelten auch hier.
-- **+ Tagesaufgabe** öffnet den Editor mit dem ausgewählten Planungsdatum. Unter „Tagesplanung · optional“ können Startzeit und geschätzte Dauer ergänzt werden.
+- Neue Aufgaben werden im **Board** erfasst. Unter „Tagesplanung · optional“ können Planungsdatum, Startzeit und geschätzte Dauer ergänzt werden.
 - **Aufgaben einplanen** zeigt weitere aktive Aufgaben. Einplanen ordnet sie dem ausgewählten Tag zu. Eine bereits an einem anderen Tag geplante Aufgabe wird auf den gewählten Tag verschoben, einschließlich einer vorhandenen Uhrzeit.
 - **Tagesablauf** sortiert Zeitblöcke nach Startzeit und zeigt flexible Aufgaben ohne Uhrzeit separat. **Status** und **Prioritäten** gruppieren die Aufgaben des ausgewählten Tages als Kanban. Bestehende Statusauswahl und Drag & Drop bleiben nutzbar; in der Prioritätsansicht ändert Drag & Drop die Priorität.
 - **Zeit & Planung** öffnet die Aufgabe zum Bearbeiten. **Aus Tagesplan nehmen** entfernt Planungsdatum und Uhrzeit, aber weder die Aufgabe noch ihre Deadline.

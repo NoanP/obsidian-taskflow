@@ -473,3 +473,14 @@ test('archiving a completed series occurrence does not archive or stop the rest 
 test('new completed tasks are archived immediately, without inventing a new completion date on later edits',()=>{
  const p=new Plugin(),meta={status:'done'};p.stamp(meta,null);assert.equal(meta.archived,true);const completed=meta.completed;p.stamp(meta,'done');assert.equal(meta.completed,completed);assert.equal(meta.archived,true);
 });
+
+test('home shortcuts reset nested view state and route each function to its correct view',()=>{
+ const view=Object.create(core.TaskView.prototype);view.render=()=>{};view.homeExpanded=new Set();view.query='stale';view.tag='work';view.statusFilter='done';view.showArchive=true;view.archiveMode='trash';view.boardMode='series';view.plannerMode='calendar';
+ for(const [key,mode,archive,board,planner,archiveMode]of [['board','board',false,'tasks','agenda','tasks'],['planner','planner',false,'tasks','agenda','tasks'],['calendar','planner',false,'tasks','calendar','tasks'],['series','board',false,'series','agenda','tasks'],['stats','stats',false,'tasks','agenda','tasks'],['archive','board',true,'tasks','agenda','tasks'],['trash','board',true,'tasks','agenda','trash']]){
+  view.query='stale';view.tag='work';view.currentPreset='old';view.openHomeDestination(key);assert.equal(view.mode,mode);assert.equal(view.showArchive,archive);assert.equal(view.boardMode,board);assert.equal(view.plannerMode,planner);assert.equal(view.archiveMode,archiveMode);assert.equal(view.query,'');assert.equal(view.tag,'');assert.equal(view.currentPreset,'');
+ }
+ assert.throws(()=>core.homeDestination('unknown'));
+});
+test('task creation controls belong only to the active board, never to home, planner, statistics or archive',()=>{
+ assert.equal(core.canCreateTasks('board'),true);for(const mode of ['home','planner','stats'])assert.equal(core.canCreateTasks(mode),false);assert.equal(core.canCreateTasks('board',true),false);assert.equal(core.canCreateTasks('stats',true),false);
+});

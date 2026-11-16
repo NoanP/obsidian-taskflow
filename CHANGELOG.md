@@ -4,6 +4,19 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-11-16
+
+### Changed
+- Freigegebene Startseite „Mein Tag“: heutige Aufgaben links, sechs interaktive Funktionskacheln rechts für Board, Kalender, Wiederholtermine, Statistik, Archiv und Papierkorb.
+- Kompakte Tagesübersicht mit direktem Tagesplaner-Zugang; vorhandene Aufgaben können geöffnet, geplant und abgeschlossen werden.
+- Überfälliges, nächste sieben Tage und Eingang bleiben unter „Weitere Aufgaben“ erreichbar. Bestehende Filterfavoriten bleiben nutzbar.
+- Schnellzugriffe öffnen gezielt den richtigen Unterreiter und setzen alte Suchfilter zurück, damit keine Inhalte versehentlich verborgen bleiben.
+- Neue Aufgaben werden ausschließlich im aktiven Board erfasst. Erstellen-Schaltflächen auf Startseite, im Tagesplaner, Kalender, Archiv und in der Statistik entfallen; auch leere Kalenderflächen legen keine neue Aufgabe mehr an.
+- Der Tastaturbefehl „Neue Aufgabe im Board“ wechselt vor der Erfassung ins Board. Neue Serien bleiben unter Board → Wiederholtermine möglich.
+
+### Compatibility
+- Reine Änderung der Bedienung und Darstellung; Aufgaben, Serienregeln, Archiv und Papierkorb bleiben unverändert gespeichert. Kalenderblöcke sind weiterhin verschiebbar und bearbeitbar.
+
 ## [0.14.4] - 2026-11-16
 
 ### Changed
