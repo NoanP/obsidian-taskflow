@@ -503,7 +503,7 @@ class TaskView extends ItemView {
     const focus=active&&c.contains(active)&&active.dataset.tfFocus?{key:active.dataset.tfFocus,start:active.selectionStart,end:active.selectionEnd}:null;
     const scroll=c.scrollTop;
     c.empty();c.addClass('tf-root');
-    const all=tasksForView(this.plugin.tasks.filter(t=>!!t.meta.archived===this.showArchive),this.mode,this.plannerMode,this.showArchive),s=summarize(all);
+    const all=tasksForView(this.plugin.tasks.filter(t=>this.mode==='stats'&&!this.showArchive?(!t.meta.archived||t.meta.status==='done'):!!t.meta.archived===this.showArchive),this.mode,this.plannerMode,this.showArchive),s=summarize(all);
     const shell=c.createDiv({cls:'tf-shell'});
     const workspace=shell.createDiv({cls:'tf-workspace'});
     const side=workspace.createEl('nav',{cls:'tf-sidebar',attr:{'aria-label':'TaskFlow Navigation'}});
@@ -722,7 +722,7 @@ class TaskView extends ItemView {
     for(const [value,text]of Object.entries(STATES))select.createEl('option',{value,text});select.value=t.meta.status;
     select.onchange=()=>{if(this.pendingPath){select.value=t.meta.status;return;}select.disabled=true;this.setStatus(t,select.value);};
     button(controls,'In Obsidian öffnen',()=>this.app.workspace.getLeaf(false).openFile(t.file),'tf-text-button');
-    button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>{m.archived=!m.archived;if(!m.archived)delete m.recurrenceSkipped;});}catch(e){report(e);}},'tf-text-button');
+    button(controls,t.meta.archived?'Wiederherstellen':'Archivieren',async()=>{try{await this.plugin.change(t,m=>{m.archived=!m.archived;if(!m.archived){delete m.recurrenceSkipped;if(m.status==='done')m.status='open';}});}catch(e){report(e);}},'tf-text-button');
     return card;
   }
   cardNote(card,task){
@@ -805,7 +805,7 @@ class TaskView extends ItemView {
       const add=button(item,old?'Auf diesen Tag verschieben':'Einplanen',async()=>{add.disabled=true;await this.planTask(task,day);if(add.isConnected)add.disabled=false;},'tf-text-button');
       add.setAttribute('aria-label',task.meta.title+' am '+day+' einplanen');
     }
-    planner.createEl('p',{text:'Planungsdatum und Uhrzeit sind dein Arbeitsplan, die Fälligkeit ist die Deadline. Überschneidungen werden markiert; es werden keine Aufgaben automatisch archiviert.',cls:'tf-planner-note'});
+    planner.createEl('p',{text:'Planungsdatum und Uhrzeit sind dein Arbeitsplan, die Fälligkeit ist die Deadline. Erledigte Aufgaben werden automatisch archiviert.',cls:'tf-planner-note'});
   }
   calendarPointerStart(event,element,task){
     if(event.button!==0||event.target.closest('.tf-calendar-check'))return;
@@ -885,7 +885,7 @@ class TaskView extends ItemView {
       const preview=column.createDiv({cls:'tf-calendar-drop-preview'});preview.hidden=true;preview.setAttribute('aria-hidden','true');
     }
     calendar.createDiv({text:this.calendarMessage||'',cls:'tf-calendar-live',attr:{role:'status','aria-live':'polite'}});
-    calendar.createEl('p',{text:'Zeitblöcke basieren auf Planungsdatum, Startzeit und Dauer. Kleine Aufgaben werden für die Bedienbarkeit mindestens als halbstündiger Block dargestellt; die Beschriftung zeigt ihre tatsächliche Dauer. Offene Aufgaben und Aufgaben in Arbeit mit Fälligkeitsdatum erscheinen automatisch am Termin unter „Flexibel“ mit dem Hinweis „Fällig“. Ein manuelles Planungsdatum hat Vorrang. Ohne Datum erfolgt kein automatischer Eintrag. Beim Erledigen im Kalender bleibt der Eintrag am angezeigten Tag erhalten. Fälligkeiten werden beim Verschieben nicht geändert.',cls:'tf-calendar-footnote'});
+    calendar.createEl('p',{text:'Zeitblöcke basieren auf Planungsdatum, Startzeit und Dauer. Kleine Aufgaben werden für die Bedienbarkeit mindestens als halbstündiger Block dargestellt; die Beschriftung zeigt ihre tatsächliche Dauer. Offene Aufgaben und Aufgaben in Arbeit mit Fälligkeitsdatum erscheinen automatisch am Termin unter „Flexibel“ mit dem Hinweis „Fällig“. Ein manuelles Planungsdatum hat Vorrang. Ohne Datum erfolgt kein automatischer Eintrag. Beim Erledigen bleibt das Planungsdatum erhalten; die Aufgabe wechselt sofort ins Archiv. Fälligkeiten werden beim Verschieben nicht geändert.',cls:'tf-calendar-footnote'});
   }
   renderStats(c,tasks){
     const period=[7,14,30,90].includes(this.statsDays)?this.statsDays:14;
@@ -940,7 +940,7 @@ class TaskView extends ItemView {
     const tagMax=Math.max(1,...data.tags.map(t=>t.total));
     for(const tag of data.tags){const row=tags.createDiv({cls:'tf-tag-row'});row.createSpan({text:'#'+tag.tag});const stack=row.createDiv({cls:'tf-tag-stack',attr:{role:'img','aria-label':`${tag.tag}: ${tag.done} erledigt, ${tag.total-tag.done} aktiv`}});if(tag.done)stack.createDiv({cls:'tf-tag-done'}).style.width=(tag.done/tagMax*100)+'%';if(tag.total-tag.done)stack.createDiv({cls:'tf-tag-active'}).style.width=((tag.total-tag.done)/tagMax*100)+'%';row.createSpan({text:tag.done+' / '+tag.total+' erledigt'});}
     if(data.tags.length){const legend=tags.createDiv({cls:'tf-tag-key'});legend.createSpan({text:'Erledigt',cls:'tf-tag-key-done'});legend.createSpan({text:'Aktiv',cls:'tf-tag-key-active'});}
-    const note=panel.createEl('p',{cls:'tf-analytics-note'});note.setText('Die Diagramme zeigen den aktuellen Aufgabenstand und das letzte Abschlussdatum. Wieder geöffnete Aufgaben zählen nicht als erledigt. Archivierte Aufgaben kannst du über Archiv → Statistik auswerten.'+(data.missingCompletion?` ${data.missingCompletion} erledigte Aufgabe(n) ohne gültiges Abschlussdatum sind im Status enthalten, aber nicht im Zeitverlauf.`:''));
+    const note=panel.createEl('p',{cls:'tf-analytics-note'});note.setText('Die Diagramme zeigen den aktuellen Aufgabenstand und das letzte Abschlussdatum. Wieder geöffnete Aufgaben zählen nicht als erledigt. Erledigte Aufgaben sind einschließlich der archivierten Abschlüsse enthalten; Archiv → Statistik wertet nur das Archiv aus.'+(data.missingCompletion?` ${data.missingCompletion} erledigte Aufgabe(n) ohne gültiges Abschlussdatum sind im Status enthalten, aber nicht im Zeitverlauf.`:''));
   }
 }
 class TaskFlow extends Plugin {
@@ -1044,7 +1044,11 @@ class TaskFlow extends Plugin {
     })();
     try{return await this.recurrenceRun;}finally{this.recurrenceRun=null;}
   }
-  stamp(meta,previous){meta.updated=new Date().toISOString();if(meta.status==='done'&&previous!=='done')meta.completed=meta.updated;if(meta.status!=='done')delete meta.completed;}
+  stamp(meta,previous){
+    meta.updated=new Date().toISOString();
+    if(meta.status==='done'){if(previous!=='done')meta.completed=meta.updated;meta.archived=true;}
+    else{delete meta.completed;if(previous==='done')meta.archived=false;}
+  }
   async change(task,mutate,bodyFn=body=>body,expected){
     await this.app.vault.process(task.file,raw=>{if(expected!==undefined&&raw!==expected)throw new Error('Aufgabe wurde zwischenzeitlich geändert. Bitte erneut öffnen.');const {meta,body}=decode(raw);if(meta.trashed)throw new Error('Die Aufgabe liegt im Papierkorb. Bitte zuerst wiederherstellen.');const previous=meta.status,before=JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]),prior=structuredClone(meta);mutate(meta);if(before!==JSON.stringify([meta.title,meta.priority,meta.tags,meta.due,meta.scheduled,meta.scheduledTime,meta.durationMinutes]))protectOccurrence(meta,{meta:prior,body});validateTaskFields(meta);validatePlanning(meta);this.stamp(meta,previous);return encode(meta,bodyFn(body));});await this.scan();
   }

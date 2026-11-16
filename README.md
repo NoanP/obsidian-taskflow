@@ -1,5 +1,13 @@
 # TaskFlow Kanban für Obsidian
 
+## Erledigte Aufgaben automatisch archivieren (0.14.4)
+
+Beim Wechsel zu **Erledigt** wird die Aufgabe sofort archiviert – im Board, im Kalender, auf der Startseite und im Editor. Im aktiven Board bleibt deshalb keine abgeschlossene Karte stehen. Du findest sie unter **Archiv → Archivierte Aufgaben** mit ihrem Status und Abschlussdatum. Notizen, Teilaufgaben, Fälligkeit und Planungsdatum bleiben erhalten.
+
+Ein Wechsel zurück zu **Offen**, **In Arbeit** oder **Verzögert** aktiviert sie wieder. **Wiederherstellen** im Archiv setzt abgeschlossene Aufgaben auf **Offen**. Die allgemeine Statistik berücksichtigt archivierte Abschlüsse weiterhin; Papierkorbeinträge werden ausgeschlossen. Ein erledigter Serientermin beeinflusst nicht die übrige Serie.
+
+Die Automatik greift beim Speichern. Bereits vorhandene Dateien werden beim Update nicht gesammelt verändert; eine bereits erledigte Aufgabe wird bei ihrer nächsten Bearbeitung ebenfalls archiviert.
+
 ## Löschen und Papierkorb (0.14.3)
 
 Im Aufgabeneditor verschiebt **Löschen → In Papierkorb verschieben** eine Aufgabe mit ihren gespeicherten Notizen und Teilaufgaben in den Papierkorb. Nicht gespeicherte Editoränderungen werden nicht übernommen. Unter **Archiv → Papierkorb** lassen sich Aufgaben wiederherstellen; der bisherige Status und Archivzustand bleiben erhalten. Gelöschte Aufgaben zählen nicht in Board, Kalender, Startseite oder Statistik.
@@ -203,7 +211,7 @@ Auf der Karte zeigt ein eigener Button **▸ Teilaufgaben · 1/3** den Fortschri
 - **Zeit & Planung** öffnet die Aufgabe zum Bearbeiten. **Aus Tagesplan nehmen** entfernt Planungsdatum und Uhrzeit, aber weder die Aufgabe noch ihre Deadline.
 - Zeitüberschneidungen aktiver Aufgaben werden markiert. Zeitblöcke müssen innerhalb eines Tages liegen; gültige Dauern sind 5–720 Minuten. Ohne hinterlegte Dauer werden 30 Minuten geschätzt.
 
-Planung und Deadline sind getrennt: `scheduled` ist das lokale Planungsdatum (YYYY-MM-DD), `scheduledTime` die optionale Startzeit (HH:MM), `durationMinutes` die geschätzte Dauer. `due` bleibt die Fälligkeit. Die Felder sind optional; vorhandene Aufgaben bleiben ohne Migration nutzbar. Es gibt keine automatische Archivierung, keine Erinnerungsbenachrichtigungen, keine Vorlagenverwaltung und keine Kalender-Synchronisation in dieser Version.
+Planung und Deadline sind getrennt: `scheduled` ist das lokale Planungsdatum (YYYY-MM-DD), `scheduledTime` die optionale Startzeit (HH:MM), `durationMinutes` die geschätzte Dauer. `due` bleibt die Fälligkeit. Die Felder sind optional; vorhandene Aufgaben bleiben ohne Migration nutzbar. Ab 0.14.4 werden erledigte Aufgaben automatisch archiviert. Erinnerungsbenachrichtigungen, Vorlagenverwaltung und Kalender-Synchronisation sind weiterhin nicht enthalten.
 
 Editor, Teilaufgaben und Tagesplaner wurden mit Beispieldaten in einer lokalen Vorschau einschließlich Zen-Theme bedient und geprüft. Die Vorschau simuliert die Obsidian-Host-API; den nativen Abschlusstest nach dem BRAT-Update bitte im Vault durchführen.
 

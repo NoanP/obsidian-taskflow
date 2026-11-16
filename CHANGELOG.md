@@ -4,6 +4,17 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.4] - 2026-11-16
+
+### Changed
+- Aufgaben werden beim Speichern mit Status „Erledigt“ sofort archiviert: über Board, Startseite, Kalender und Aufgabeneditor. Status, Abschlussdatum, Planung, Notizen und Teilaufgaben bleiben erhalten.
+- Wechsel von „Erledigt“ zu einem offenen Status reaktiviert die Aufgabe. „Wiederherstellen“ im Archiv öffnet abgeschlossene Aufgaben wieder mit Status „Offen“.
+- Die allgemeine Statistik berücksichtigt archivierte Abschlüsse weiterhin. Manuell archivierte offene Aufgaben und Papierkorbeinträge zählen dort nicht als aktive Aufgaben.
+- Abgeschlossene Serientermine werden einzeln archiviert; die Wiederholungsregel und weitere Termine laufen unverändert weiter.
+
+### Compatibility
+- Keine nachträgliche Massenänderung vorhandener Dateien. Die Automatik greift beim nächsten Speichern einer Aufgabe mit erledigtem Status; der bisherige Papierkorb bleibt unverändert.
+
 ## [0.14.3] - 2026-11-16
 
 ### Added

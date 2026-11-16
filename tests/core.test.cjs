@@ -192,11 +192,11 @@ test('manual calendar plan overrides deadline and does not duplicate any status'
   core.assignDay(item.meta,'');assert.equal(core.calendarTasks([item]).length,['open','progress'].includes(status)?1:0);
  }
 });
-test('completing an automatic calendar entry keeps it on its displayed day and preserves file data',async()=>{
+test('completing an automatic calendar entry archives it while preserving its displayed day and file data',async()=>{
  const original={file:{path:'task.md'},...task('progress','2026-11-13')};const projected=core.calendarTasks([original])[0];let raw=core.encode({...original.meta,custom:42},'My notes\n- [ ] Subtask\n');
  const p=new Plugin();p.app={vault:{process:async(file,fn)=>{assert.equal(file,original.file);raw=fn(raw)}}};p.scan=async()=>{};
  const view={plugin:p,contentEl:{setAttribute(){},removeAttribute(){},querySelector(){return null},querySelectorAll(){return []}}};
- await core.TaskView.prototype.setStatus.call(view,projected,'done');const saved=core.decode(raw);assert.equal(saved.meta.status,'done');assert.equal(saved.meta.scheduled,'2026-11-13');assert.equal(saved.meta.due,'2026-11-13');assert.equal(saved.meta.custom,42);assert.ok(saved.meta.completed);assert.equal(saved.body,'My notes\n- [ ] Subtask\n');assert.equal(core.calendarTasks([{file:original.file,...saved}]).length,1);
+ await core.TaskView.prototype.setStatus.call(view,projected,'done');const saved=core.decode(raw);assert.equal(saved.meta.status,'done');assert.equal(saved.meta.scheduled,'2026-11-13');assert.equal(saved.meta.due,'2026-11-13');assert.equal(saved.meta.custom,42);assert.ok(saved.meta.completed);assert.equal(saved.body,'My notes\n- [ ] Subtask\n');assert.equal(saved.meta.archived,true);assert.equal(core.calendarTasks([{file:original.file,...saved}]).length,0);
 });
 test('weekly recurrence keeps weekday and wall clock across DST and includes end date',()=>{
  const rule={frequency:'weekly',interval:1,start:'2026-03-20',time:'09:00',durationMinutes:60,until:'2026-04-10'};
@@ -459,4 +459,17 @@ test('permanent delete reports partial progress and leaves remaining items in tr
 });
 test('trash protects series exceptions during edits and cannot be silently changed by stale card actions',async()=>{
  const items=seriesFixture(),{p}=trashFixture(items);await p.moveToTrash(items[1]);const deleted=p.tasks.find(t=>t.meta.trashed);await assert.rejects(()=>p.change(deleted,m=>m.status='done'),/Papierkorb/);const source=p.tasks.find(t=>t.meta.id==='series');const changes=core.seriesPlan(p.tasks,source,{...source.meta,title:'New'},'New body',source.meta.recurrence,'new','2026-11-13');assert.ok(!changes.some(change=>change.task.file.path===deleted.file.path));assert.ok(changes.find(change=>change.meta.id==='series').meta.recurrence.skipped.includes(deleted.meta.recurrenceDate));
+});
+
+test('completion immediately archives without losing notes or metadata and reopening returns to active tasks',async()=>{
+ const item={file:{path:'Tasks/task.md'},meta:{taskflow:1,id:'task',title:'Finish',status:'progress',custom:{keep:42}},body:'Notes\n- [x] Keep\n'};item.raw=core.encode(item.meta,item.body);const {p}=trashFixture([item]);
+ await p.change(item,m=>m.status='done');let saved=p.tasks[0];assert.equal(saved.meta.archived,true);assert.ok(saved.meta.completed);assert.equal(saved.meta.custom.keep,42);assert.equal(saved.body,item.body);
+ const completed=saved.meta.completed;await p.change(saved,m=>m.title='Edited');saved=p.tasks[0];assert.equal(saved.meta.completed,completed);assert.equal(saved.meta.archived,true);
+ await p.change(saved,m=>m.status='progress');saved=p.tasks[0];assert.equal(saved.meta.archived,false);assert.equal(saved.meta.completed,undefined);assert.equal(saved.body,item.body);
+});
+test('archiving a completed series occurrence does not archive or stop the rest of the series',async()=>{
+ const items=seriesFixture(),{p}=trashFixture(items);await p.change(items[1],m=>m.status='done');const done=p.tasks.find(t=>t.meta.id===items[1].meta.id);assert.equal(done.meta.archived,true);assert.ok(!p.tasks.find(t=>t.meta.id==='series').meta.archived);assert.ok(!p.tasks.find(t=>t.meta.id===items[2].meta.id).meta.archived);assert.equal(await p.ensureRecurrences(p.tasks,'2026-11-13'),0);
+});
+test('new completed tasks are archived immediately, without inventing a new completion date on later edits',()=>{
+ const p=new Plugin(),meta={status:'done'};p.stamp(meta,null);assert.equal(meta.archived,true);const completed=meta.completed;p.stamp(meta,'done');assert.equal(meta.completed,completed);assert.equal(meta.archived,true);
 });
