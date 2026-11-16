@@ -4,6 +4,27 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-16
+
+### Added
+- Zentrale Startseite „Mein Tag“: heute geplante oder fällige Aufgaben, überfällige Deadlines, nächste sieben Tage und Eingang ohne Planungsdatum.
+- Aufgaben direkt öffnen, planen und abschließen; große Listen zunächst auf fünf Einträge begrenzt und vollständig aufklappbar.
+- Gespeicherte Filterfavoriten mit aktueller Trefferzahl sowie direkter Einstieg in Tagesplan und Suche.
+- Konfigurierbare Startansicht und ausblendbare Navigationspunkte; Startseite bleibt immer erreichbar.
+- Befehl „Startseite öffnen“ für einen gezielten Einstieg, auch bei einem bereits offenen TaskFlow-Tab.
+
+### Changed
+- Neue TaskFlow-Tabs starten standardmäßig auf der Startseite. Board, Tagesplaner oder Statistik können als Startansicht gewählt werden.
+- Graue Flächen folgen der bestehenden Oberfläche; ausschließlich Status und Priorität tragen semantische Farben.
+
+### Fixed
+- Häkchen der Startseite werden nach dem Speichern wieder freigegeben, auch wenn die Aufgabe währenddessen aus ihrer Liste verschwindet.
+
+### Compatibility
+- Die Versionsnummer folgt dem vereinbarten Updateplan: 0.12 war die externe Bestandsaufnahme; der Datenumzug aus 0.13 ist zurückgestellt. Es wurden keine Plugin-Versionen 0.12 oder 0.13 veröffentlicht.
+- Die Startseite zeigt ausschließlich vorhandene TaskFlow-Aufgaben. Sie importiert keine TaskNotes-Dateien, ändert keine Planung beim Anzeigen und deaktiviert keine anderen Plugins.
+- Bestehende Aufgabendateien und gespeicherte Filter bleiben unverändert verwendbar.
+
 ## [0.11.0] - 2026-11-13
 
 ### Added

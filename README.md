@@ -1,5 +1,15 @@
 # TaskFlow Kanban für Obsidian
 
+## Zentrale Startseite (0.14.0)
+
+„Mein Tag“ bündelt offene TaskFlow-Aufgaben: **Heute** zeigt heute geplante oder fällige Aufgaben (einmal je Liste), **Überfällig** offene Aufgaben mit vergangener Deadline, **Nächste 7 Tage** Planung und Fälligkeiten von morgen bis heute + 7 Tage. **Eingang** enthält Aufgaben ohne gültiges Planungsdatum, auch wenn bereits eine Deadline besteht. Eine Aufgabe kann fachlich zu mehreren Bereichen gehören; dabei entstehen keine Kopien.
+
+Die Übersicht zeigt zunächst fünf Aufgaben je Bereich; alle weiteren sind über „Alle anzeigen“ erreichbar. Titel und „Planen“ öffnen den bestehenden Aufgabeneditor. Das Kontrollkästchen schließt die Aufgabe ab; Fälligkeit und Planung werden dadurch nicht geändert. Archivierte oder erledigte Aufgaben erscheinen nicht in diesen Listen. Gespeicherte Filter zeigen dieselben Treffer wie das Board, einschließlich erledigter, nicht archivierter Aufgaben, falls der Filter diese einschließt.
+
+In den TaskFlow-Einstellungen lassen sich die Startansicht für neue Tabs und sichtbare Navigationspunkte festlegen. Die Startseite bleibt erreichbar. Der Befehl „Startseite öffnen“ wechselt auch einen bestehenden Tab gezielt dorthin. Bestehende Suchfilter beeinflussen die Startseite nicht; Favoriten öffnen das Board mit ihrer gespeicherten Kombination.
+
+Die Startseite ist unabhängig von einer Migration. Aufgaben anderer Plugins werden nicht automatisch eingelesen. 0.12 (Bestandsaufnahme) und 0.13 (Umzug) bezeichnen Schritte des Ausbauplans; für diese Schritte gibt es keine Plugin-Releases. Die Datenübernahme bleibt gesondert und ändert sich durch 0.14.0 nicht.
+
 Ein lokales Aufgabenboard mit Dashboard, Statistik, Tags, Fälligkeit, Priorität, Notizen und Teilaufgaben. Oberfläche auf Deutsch. Aufgaben sind normale Markdown-Dateien in `TaskFlow/Aufgaben`. Keine Anmeldung, kein eigener Server, keine Telemetrie.
 
 ## Gespeicherte Filter und Serienbearbeitung ab 0.11.0
