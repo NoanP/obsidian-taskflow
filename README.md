@@ -1,6 +1,8 @@
 # TaskFlow Kanban für Obsidian
 
-## Startseite „Mein Tag“ (0.14.5)
+## Startseite „Mein Tag“ (0.14.6)
+
+Die linke TaskFlow-Seitenleiste entfällt. Auf jeder Unterseite führt **← Zum Hauptmenü** zurück zur Startseite und setzt alte Filter zurück. Die sechs Funktionskacheln sind großzügig gestaltet, mit großen Symbolen und gut lesbaren Beschriftungen.
 
 Die Startseite zeigt links heutige geplante oder fällige Aufgaben und rechts sechs Schnellzugriffe: **Board**, **Kalender**, **Wiederholtermine**, **Statistik**, **Archiv** und **Papierkorb**. **Tag planen** öffnet den Tagesablauf für heute. Die Kacheln führen unmittelbar zur jeweiligen Funktion und setzen alte Filter zurück. Erfasste Aufgaben können direkt geöffnet, geplant oder abgeschlossen werden; die automatische Archivierung bleibt aktiv.
 

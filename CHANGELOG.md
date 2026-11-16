@@ -4,6 +4,14 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.6] - 2026-11-16
+
+### Changed
+- Linke TaskFlow-Navigation entfernt: alle Funktionen sind zentral über das Hauptmenü erreichbar.
+- Jede Unterseite erhält den eigenen Button „Zum Hauptmenü“; die Rückkehr setzt alte Ansichten und Filter zurück.
+- Sechs deutlich größere graue Funktionskacheln mit größeren Symbolen, lesbareren Beschriftungen und mehr Abstand; responsive bis zu schmalen Panels.
+- Überflüssige Einstellungen für die entfernte Seitenleiste entfallen. Filterfavoriten bleiben auf der Startseite einblendbar.
+
 ## [0.14.5] - 2026-11-16
 
 ### Changed

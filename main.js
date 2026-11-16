@@ -521,23 +521,12 @@ class TaskView extends ItemView {
     const all=tasksForView(this.plugin.tasks.filter(t=>this.mode==='stats'&&!this.showArchive?(!t.meta.archived||t.meta.status==='done'):!!t.meta.archived===this.showArchive),this.mode,this.plannerMode,this.showArchive),s=summarize(all);
     const shell=c.createDiv({cls:'tf-shell'});
     const workspace=shell.createDiv({cls:'tf-workspace'});
-    const side=workspace.createEl('nav',{cls:'tf-sidebar',attr:{'aria-label':'TaskFlow Navigation'}});
-    side.createDiv({text:'TaskFlow',cls:'tf-side-label'});
-    const navigate=(mode,archive)=>{this.mode=mode;this.showArchive=archive;if(archive)this.archiveMode='tasks';this.render();};
-    button(side,'Startseite',()=>navigate('home',false),'tf-side-item'+(!this.showArchive&&this.mode==='home'?' is-active':''));
-    const hidden=new Set(hiddenNavigation(this.plugin.settings));
-    for(const [key,label]of Object.entries(NAVIGATION)){if(['tags','favorites'].includes(key)||hidden.has(key))continue;const archive=key==='archive',mode=archive?'board':key;button(side,label,()=>navigate(mode,archive),'tf-side-item'+((archive?this.showArchive:!this.showArchive&&this.mode===mode)?' is-active':''));}
     const tags=[...new Set(all.flatMap(t=>t.meta.tags||[]))].sort();
-    if(!hidden.has('tags')){
-    side.createDiv({text:'Tags',cls:'tf-side-label'});
-    const selectTag=tag=>{this.boardMode='tasks';this.currentPreset='';this.tag=tag;if(this.mode==='home')this.mode='board';this.render();};
-    button(side,'Alle Aufgaben',()=>selectTag(''),'tf-side-item'+(!this.tag?' is-tag-active':''));
-    for(const tag of tags)button(side,'#'+tag,()=>selectTag(tag),'tf-side-item'+(this.tag===tag?' is-tag-active':''));
-    if(!tags.length)side.createDiv({text:'Noch keine Tags',cls:'tf-side-empty'});
-    }
-    const presets=savedFilters(this.plugin.settings);if(presets.length&&!hidden.has('favorites')){side.createDiv({text:'Gespeicherte Filter',cls:'tf-side-label'});for(const preset of presets)button(side,preset.name,()=>this.applyFilter(preset),'tf-side-item'+(this.currentPreset===preset.id?' is-active':''));}
-    side.createDiv({text:'Lokal im Vault',cls:'tf-side-footer'});
+    const presets=savedFilters(this.plugin.settings);
     const main=workspace.createDiv({cls:'tf-main'});
+    const navigation=main.createDiv({cls:'tf-home-navigation'});
+    const homeButton=button(navigation,this.mode==='home'&&!this.showArchive?'Hauptmenü':'← Zum Hauptmenü',()=>this.goHome(),'tf-home-return');
+    if(this.mode==='home'&&!this.showArchive){homeButton.disabled=true;homeButton.setAttribute('aria-current','page');}
     const header=main.createDiv({cls:'tf-header'}),title=header.createDiv();
     title.createEl('h1',{text:this.showArchive?(this.archiveMode==='trash'?'Papierkorb':this.mode==='stats'?'Archiv · Statistik':'Archiv'):this.mode==='home'?'Mein Tag':this.mode==='stats'?'Analyse & Statistik':this.mode==='planner'?'Tagesplaner':this.boardMode==='series'?'Wiederholtermine':'Meine Aufgaben'});
     title.createEl('p',{text:new Date().toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'})+' · Mein Arbeitsbereich',cls:'tf-muted tf-subtitle'});
@@ -661,6 +650,7 @@ class TaskView extends ItemView {
       if(list.length>5){const more=button(section,expanded?'Weniger anzeigen':`Alle ${list.length} anzeigen`,()=>{if(expanded)this.homeExpanded.delete(key);else this.homeExpanded.add(key);this.render();},'tf-text-button');more.setAttribute('aria-expanded',String(expanded));}
     }
   }
+  goHome(){this.mode='home';this.showArchive=false;this.archiveMode='tasks';this.boardMode='tasks';this.plannerMode='agenda';this.seriesQuery='';this.resetFilters();this.contentEl.scrollTop=0;}
   openHomeDestination(key){Object.assign(this,homeDestination(key));if(this.mode==='planner')this.plannerDate=today();this.resetFilters();}
   homeTask(parent,task){
     const priority=Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal';
@@ -973,14 +963,14 @@ class TaskFlow extends Plugin {
   async onload(){
     this.settings=Object.assign({folder:'TaskFlow/Aufgaben'},await this.loadData());this.tasks=[];this.scanVersion=0;this.stopped=false;
     this.registerView(VIEW,leaf=>new TaskView(leaf,this));this.addRibbonIcon('kanban-square','TaskFlow öffnen',()=>this.open());
-    this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'home',name:'Startseite öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='home';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'planner',name:'Tagesplaner öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='planner';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'new',name:'Neue Aufgabe im Board',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.openHomeDestination('board');new TaskEditor(this).open();}}});
+    this.addCommand({id:'open',name:'Dashboard öffnen',callback:()=>this.open()});this.addCommand({id:'home',name:'Startseite öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.goHome();}}});this.addCommand({id:'planner',name:'Tagesplaner öffnen',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.mode='planner';leaf.view.showArchive=false;leaf.view.render();}}});this.addCommand({id:'new',name:'Neue Aufgabe im Board',callback:async()=>{await this.open();const leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(leaf){leaf.view.openHomeDestination('board');new TaskEditor(this).open();}}});
     this.addSettingTab(new class extends PluginSettingTab{display(){
       const c=this.containerEl;c.empty();c.createEl('h2',{text:'TaskFlow'});c.createEl('p',{text:'Aufgaben liegen als Markdown im Ordner '+this.plugin.settings.folder+'. Bestehende Aufgaben anderer Plugins werden nicht automatisch importiert.'});
       const label=c.createEl('label',{cls:'setting-item'});label.createSpan({text:'Startansicht bei einem neuen TaskFlow-Tab'});const select=label.createEl('select',{attr:{'aria-label':'Startansicht'}});
       for(const [value,text]of Object.entries({home:'Startseite',board:'Board',planner:'Tagesplaner',stats:'Statistik'}))select.createEl('option',{value,text});select.value=startView(this.plugin.settings);
       select.onchange=async()=>{select.disabled=true;try{await this.plugin.updateSettings(settings=>{settings.startView=select.value;});}catch(e){select.value=startView(this.plugin.settings);report(e);}finally{select.disabled=false;}};
-      c.createEl('h3',{text:'Navigation anzeigen'});c.createEl('p',{text:'Ausblenden verändert keine Aufgaben. Die Startseite und ihre direkten Zugänge bleiben erreichbar.'});
-      for(const [key,name]of Object.entries(NAVIGATION)){
+      c.createEl('h3',{text:'Startseite'});
+      for(const [key,name]of [['favorites','Gespeicherte Filter auf der Startseite']]){
         const row=c.createEl('label',{cls:'setting-item'});row.createSpan({text:name});const input=row.createEl('input',{type:'checkbox',attr:{'aria-label':name+' anzeigen'}});input.checked=!hiddenNavigation(this.plugin.settings).includes(key);
         input.onchange=async()=>{input.disabled=true;try{const visible=input.checked;await this.plugin.updateSettings(settings=>{const hidden=new Set(hiddenNavigation(settings));if(visible)hidden.delete(key);else hidden.add(key);settings.hiddenNavigation=[...hidden];});}catch(e){input.checked=!hiddenNavigation(this.plugin.settings).includes(key);report(e);}finally{input.disabled=false;}};
       }

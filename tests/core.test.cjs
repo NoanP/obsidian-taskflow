@@ -484,3 +484,8 @@ test('home shortcuts reset nested view state and route each function to its corr
 test('task creation controls belong only to the active board, never to home, planner, statistics or archive',()=>{
  assert.equal(core.canCreateTasks('board'),true);for(const mode of ['home','planner','stats'])assert.equal(core.canCreateTasks(mode),false);assert.equal(core.canCreateTasks('board',true),false);assert.equal(core.canCreateTasks('stats',true),false);
 });
+
+test('returning to the main menu clears nested navigation and filters without discarding note drafts',()=>{
+ const view=Object.create(core.TaskView.prototype);view.render=()=>{};view.contentEl={scrollTop:500};view.noteDrafts=new Map([['task','unsaved note']]);view.mode='board';view.showArchive=true;view.archiveMode='trash';view.boardMode='series';view.plannerMode='calendar';view.seriesQuery='old';view.query='old';view.tag='work';view.currentPreset='old';view.statusFilter='done';view.priorityFilter='high';view.dueFilter='late';view.filtersOpen=true;
+ view.goHome();assert.equal(view.mode,'home');assert.equal(view.showArchive,false);assert.equal(view.archiveMode,'tasks');assert.equal(view.boardMode,'tasks');assert.equal(view.plannerMode,'agenda');for(const key of ['seriesQuery','query','tag','currentPreset','statusFilter','priorityFilter','dueFilter'])assert.equal(view[key],'');assert.equal(view.filtersOpen,false);assert.equal(view.contentEl.scrollTop,0);assert.equal(view.noteDrafts.get('task'),'unsaved note');
+});
