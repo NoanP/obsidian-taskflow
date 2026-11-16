@@ -445,3 +445,11 @@
 .tf-home-task>.tf-text-button{flex-shrink:0;margin-top:1px}
 @container taskflow (max-width:900px){.tf-home-grid{grid-template-columns:minmax(0,1fr);gap:26px}}
 @container taskflow (max-width:450px){.tf-home-task{padding:10px;gap:8px}.tf-home-task>.tf-text-button{font-size:11px}.tf-home-shortcuts{gap:10px}}
+/* Compact series management; occurrences expand only on demand. */
+.tf-series-row{border:1px solid var(--tf-line);background:var(--tf-control-soft);border-radius:5px;padding:18px;margin:16px 0}
+.tf-series-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.tf-root .tf-series-heading h2{font:600 16px/1.5 var(--font-interface,system-ui);margin:0;color:var(--tf-ink);overflow-wrap:anywhere}
+.tf-series-details{display:flex;gap:8px 20px;flex-wrap:wrap;margin:12px 0;color:var(--tf-quiet);font-size:12px}
+.tf-series-terms{margin-top:16px;border-top:1px solid var(--tf-line)}
+.tf-series-term{display:flex;gap:10px 20px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--tf-line);padding:10px 0;font-size:12px}
+.tf-series-term>.tf-text-button{margin-left:auto}

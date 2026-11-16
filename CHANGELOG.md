@@ -4,6 +4,18 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-11-16
+
+### Added
+- Board-Reiter „Wiederholtermine“ mit einer kompakten Zeile je Serie bzw. geändertem Serienabschnitt, Suchfeld, Rhythmus, Zeitraum und nächstem offenen Termin.
+- Zentrale Serienbearbeitung startet standardmäßig beim nächsten offenen, nicht individuell geschützten Termin mit dem Umfang „Diesen und folgende Termine“. Gibt es keinen solchen Termin, wird die Serienquelle geöffnet.
+- Vorhandene Termine lassen sich pro Serie ausklappen und einzeln bearbeiten; pausierte und beendete Serien sowie Termine mit fehlender Quelle bleiben auffindbar.
+- „Neue Wiederholung“ öffnet die Erfassung mit vorausgewählter wöchentlicher Wiederholung.
+
+### Compatibility
+- Der normale Aufgaben-Reiter bleibt frei von Serienterminen. Kalender, Startseite, Archiv und bisherige Schutzregeln für Serien bleiben erhalten.
+- Keine automatische Veränderung oder Migration bestehender Dateien beim Öffnen der Verwaltung.
+
 ## [0.14.1] - 2026-11-16
 
 ### Changed

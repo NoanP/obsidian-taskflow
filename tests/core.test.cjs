@@ -413,3 +413,16 @@ test('archived recurrence history and statistics remain available for recovery a
  const skipped={file:{path:'skipped'},meta:{title:'Skipped',status:'open',archived:true,recurrenceSeries:'series',recurrenceSkipped:true},body:''},done={file:{path:'done'},meta:{title:'Done',status:'done',archived:true,recurrenceSeries:'series'},body:''};
  const tasks=[skipped,done];assert.equal(core.tasksForView(tasks,'board','agenda',true),tasks);assert.equal(core.tasksForView(tasks,'stats'),tasks);assert.equal(core.homeOverview(tasks,'2026-11-16').active,0);
 });
+
+test('series management groups generated occurrences once and chooses the next unprotected open task',()=>{
+ const source={file:{path:'source'},meta:{id:'series',title:'Weekly',status:'done',scheduled:'2026-11-02',recurrence:{frequency:'weekly',start:'2026-11-02',interval:1}},body:''};
+ const make=(id,day,extra={})=>({file:{path:id},meta:{id,title:'Weekly',recurrenceSeries:'series',status:'open',scheduled:day,...extra},body:''});
+ const exception=make('exception','2026-11-16',{recurrenceException:true}),next=make('next','2026-11-23'),done=make('done','2026-11-09',{status:'done'}),skipped=make('skip','2026-11-30',{archived:true,recurrenceSkipped:true});
+ const tasks=[next,source,skipped,exception,done],before=JSON.stringify(tasks),groups=core.seriesOverview(tasks,'2026-11-16');
+ assert.equal(groups.length,1);assert.equal(groups[0].terms.length,5);assert.equal(groups[0].next,exception);assert.equal(groups[0].editTask,next);assert.equal(groups[0].open,2);assert.equal(groups[0].state,'Aktiv');assert.equal(JSON.stringify(tasks),before);
+});
+test('series management retains paused, ended, split sources and orphaned occurrence groups',()=>{
+ const make=(id,extra)=>({file:{path:id},meta:{id,title:id,status:'open',...extra},body:''});
+ const tasks=[make('paused',{recurrence:{start:'2026-11-16',enabled:false}}),make('ended',{recurrence:{start:'2026-11-01',until:'2026-11-10'}}),make('split',{recurrence:{start:'2026-11-17'}}),make('orphan-a',{recurrenceSeries:'missing',scheduled:'2026-11-18'}),make('orphan-b',{recurrenceSeries:'missing',scheduled:'2026-11-25'}),make('single',{})];
+ const groups=core.seriesOverview(tasks,'2026-11-16');assert.equal(groups.length,4);assert.equal(groups.find(g=>g.id==='missing').terms.length,2);assert.equal(groups.find(g=>g.id==='missing').source,null);assert.equal(groups.find(g=>g.id==='missing').state,'Quelle fehlt');assert.equal(groups.find(g=>g.id==='paused').state,'Pausiert');assert.equal(groups.find(g=>g.id==='ended').state,'Beendet');assert.equal(groups.find(g=>g.id==='split').state,'Aktiv');
+});

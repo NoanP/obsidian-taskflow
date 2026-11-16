@@ -1,5 +1,11 @@
 # TaskFlow Kanban für Obsidian
 
+## Wiederholtermine zentral bearbeiten (0.14.2)
+
+Unter **Board → Wiederholtermine** steht jede Serie bzw. jeder geänderte Serienabschnitt einmal, mit Rhythmus, Zeitraum, Status und nächstem offenen Termin. Eine eigene Suche findet Serien anhand von Titel, Tags, Rhythmus oder Status. Die Verwaltung enthält auch pausierte, beendete und archivierte Serienquellen; normale Board-Filter beeinflussen sie nicht.
+
+**Serie bearbeiten** öffnet den nächsten offenen, nicht individuell geschützten Termin standardmäßig mit „Diesen und folgende Termine“. Die sichtbaren Serienfelder bestimmen Rhythmus, Uhrzeit, Dauer und Enddatum. Ohne passenden zukünftigen Termin öffnet sich die Serienquelle; das Startdatum und den Bearbeitungsumfang vor dem Speichern prüfen. Geschützte Folgetermine bleiben erhalten. **Termine anzeigen** klappt die erfassten Termine auf; dort ist auch die Einzelbearbeitung möglich. Fehlt die Serienquelle, bleiben nur Einzeländerungen möglich. **Neue Wiederholung** wählt wöchentliche Wiederholung vor.
+
 ## Wiederholtermine ab 0.14.1
 
 Serientermine werden im Kalender und auf der Startseite angezeigt. Das aktive Todo-Board enthält Einzelaufgaben; der erste Serientermin und die automatisch erzeugten Folgetermine bleiben dort ausgeblendet, ebenso individuelle Ausnahmen. Die gleiche Trennung gilt für Tagesablauf, Status-/Prioritätenansichten und den Planungsvorrat. Board-Zähler, Suche und Filterfavoriten beziehen sich auf die sichtbaren Einzelaufgaben. Kalender und Startseite zeigen Serien weiterhin passend zum jeweiligen Datum.
