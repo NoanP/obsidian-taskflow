@@ -4,6 +4,12 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-17
+
+### Changed
+- Schmalere Tagesaufgabenspalte und rund 15 % mehr Breite für die acht Funktionskacheln auf breiten Panels. Auch bei mittleren Panelbreiten erhält der Schnellzugriff mehr Platz.
+- Tagesstatistik, Detailfunktionen, konfigurierbare Kachelhöhe und mobile Anordnung bleiben erhalten.
+
 ## [0.17.0] - 2026-11-17
 
 ### Added

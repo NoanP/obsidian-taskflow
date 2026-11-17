@@ -530,7 +530,7 @@
 @media(max-width:480px){.tf-color-row{grid-template-columns:38px 90px minmax(0,1fr)}.tf-color-row>span{grid-column:1/-1}.tf-settings-modal .tf-setting-row select{flex-basis:100%;width:100%!important;max-width:100%!important}}
 
 /* My day: tasks, daily insight, and eight shortcuts in balanced columns. */
-.tf-day-layout{grid-template-columns:minmax(0,1.1fr) minmax(270px,.85fr) minmax(0,1.35fr);grid-template-areas:"tasks insight shortcuts";gap:28px}
+.tf-day-layout{grid-template-columns:minmax(0,.9fr) minmax(270px,.85fr) minmax(0,1.55fr);grid-template-areas:"tasks insight shortcuts";gap:28px}
 .tf-day-main{grid-area:tasks}.tf-day-insight{grid-area:insight;min-width:0}.tf-day-shortcuts{grid-area:shortcuts}
 .tf-day-insight-panel{background:var(--tf-card-bg);border:1px solid var(--tf-card-border);border-radius:var(--tf-radius,8px);padding:24px;min-width:0}
 .tf-day-ring{width:min(100%,230px);aspect-ratio:1;margin:0 auto;position:relative}
@@ -560,6 +560,6 @@
 .tf-home-note-preview{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--tf-note-background,var(--tf-surface));color:var(--tf-note-text,var(--tf-ink));padding:12px!important;border-radius:5px;font-size:var(--tf-font-size,14px);max-height:320px;overflow:auto}
 .tf-home-subtask{display:flex;gap:9px;align-items:flex-start;padding:8px 0;font-size:var(--tf-small-size,12px);overflow-wrap:anywhere}.tf-home-subtask input{margin:3px 0 0;flex-shrink:0}
 .tf-root[data-tf-density="compact"] .tf-home-task{padding:12px;margin-bottom:12px}.tf-root[data-tf-density="spacious"] .tf-home-task{padding:28px;margin-bottom:24px}
-@container taskflow (max-width:1350px){.tf-day-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"tasks shortcuts" "insight shortcuts";gap:28px}}
+@container taskflow (max-width:1350px){.tf-day-layout{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-areas:"tasks shortcuts" "insight shortcuts";gap:28px}}
 @container taskflow (max-width:850px){.tf-day-layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"tasks" "insight" "shortcuts"}.tf-day-insight-panel{padding:20px}.tf-day-ring{width:210px}}
 @container taskflow (max-width:420px){.tf-day-metrics{grid-template-columns:1fr}.tf-day-status-grid{grid-template-columns:1fr}.tf-root .tf-day-main .tf-home-task,.tf-root .tf-home-task{padding:14px;gap:8px}}
