@@ -528,3 +528,38 @@
 .tf-settings-modal .tf-setting-row input[type="number"]{flex:0 0 100px;width:100px!important}
 
 @media(max-width:480px){.tf-color-row{grid-template-columns:38px 90px minmax(0,1fr)}.tf-color-row>span{grid-column:1/-1}.tf-settings-modal .tf-setting-row select{flex-basis:100%;width:100%!important;max-width:100%!important}}
+
+/* My day: tasks, daily insight, and eight shortcuts in balanced columns. */
+.tf-day-layout{grid-template-columns:minmax(0,1.1fr) minmax(270px,.85fr) minmax(0,1.35fr);grid-template-areas:"tasks insight shortcuts";gap:28px}
+.tf-day-main{grid-area:tasks}.tf-day-insight{grid-area:insight;min-width:0}.tf-day-shortcuts{grid-area:shortcuts}
+.tf-day-insight-panel{background:var(--tf-card-bg);border:1px solid var(--tf-card-border);border-radius:var(--tf-radius,8px);padding:24px;min-width:0}
+.tf-day-ring{width:min(100%,230px);aspect-ratio:1;margin:0 auto;position:relative}
+.tf-day-ring svg{display:block;width:100%;height:100%}
+.tf-day-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;color:var(--tf-ink)}
+.tf-day-ring-label strong{font-size:calc(var(--tf-font-size,14px)*2.5);font-weight:650;line-height:1.2}
+.tf-day-ring-label span{font-size:var(--tf-small-size,12px);color:var(--tf-quiet);margin-top:8px}
+.tf-day-progress-caption{text-align:center;font-size:var(--tf-small-size,12px);color:var(--tf-quiet);margin:10px 0 24px!important}
+.tf-day-status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;font-size:var(--tf-small-size,12px)}
+.tf-day-status-grid>div{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}.tf-day-status-grid strong{margin-left:auto}
+.tf-day-metrics{border-block:1px solid var(--tf-line);padding:20px 0;margin:24px 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tf-day-metrics>div{display:flex;flex-direction:column;gap:6px;min-width:0}.tf-day-metrics strong{font-size:calc(var(--tf-font-size,14px)*1.7);line-height:1.2}.tf-day-metrics span{font-size:var(--tf-small-size,12px);color:var(--tf-quiet);overflow-wrap:anywhere}
+.tf-day-trend-heading{font-size:calc(var(--tf-font-size,14px)*.95);font-weight:550;margin:20px 0 16px}
+.tf-day-trend{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-bottom:20px}.tf-day-trend-col{min-width:0;text-align:center;font-size:var(--tf-small-size,12px)}
+.tf-day-trend-count,.tf-day-trend-label{display:block;color:var(--tf-quiet);overflow-wrap:anywhere}.tf-day-trend-track{height:75px;display:flex;align-items:flex-end;margin:8px 0;border-bottom:1px solid var(--tf-line)}
+.tf-day-trend-bar{width:100%;border-radius:3px 3px 0 0;background:var(--tf-progress,var(--tf-quiet))}.tf-day-trend-col.is-today .tf-day-trend-label{font-weight:700;color:var(--tf-ink)}
+.tf-day-insight-note{font-size:var(--tf-small-size,12px);color:var(--tf-quiet);margin:14px 0!important}
+.tf-root .tf-day-main .tf-home-task,.tf-root .tf-home-task{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;background:var(--tf-card-bg);border:1px solid var(--tf-card-border);border-left:4px solid var(--tf-priority-color);border-radius:var(--tf-radius,8px);padding:20px;margin:0 0 16px}
+.tf-home-task>input{width:18px;height:18px;margin-top:3px}.tf-home-task-badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tf-home-task-badges .tf-status-label,.tf-home-task-badges .tf-priority-label{font-size:var(--tf-small-size,12px)}
+.tf-home-task-details{margin-top:12px;gap:6px 12px;line-height:1.5}
+.tf-home-task-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--tf-line);padding-top:12px;margin-top:16px}
+.tf-root button.tf-home-details-toggle{border:1px solid var(--tf-line);background:var(--tf-control-soft);color:var(--tf-ink);box-shadow:none;border-radius:5px;padding:7px 11px;height:auto;font-size:var(--tf-small-size,12px)}
+.tf-root button.tf-home-details-toggle:hover{background:var(--tf-control)}
+.tf-home-task-expanded{margin-top:16px;padding-top:16px;border-top:1px solid var(--tf-line)}.tf-home-task-expanded[hidden]{display:none!important}
+.tf-home-task-expanded h3{font-size:var(--tf-small-size,12px);font-weight:600;margin:8px 0}
+.tf-home-note-preview{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--tf-note-background,var(--tf-surface));color:var(--tf-note-text,var(--tf-ink));padding:12px!important;border-radius:5px;font-size:var(--tf-font-size,14px);max-height:320px;overflow:auto}
+.tf-home-subtask{display:flex;gap:9px;align-items:flex-start;padding:8px 0;font-size:var(--tf-small-size,12px);overflow-wrap:anywhere}.tf-home-subtask input{margin:3px 0 0;flex-shrink:0}
+.tf-root[data-tf-density="compact"] .tf-home-task{padding:12px;margin-bottom:12px}.tf-root[data-tf-density="spacious"] .tf-home-task{padding:28px;margin-bottom:24px}
+@container taskflow (max-width:1350px){.tf-day-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"tasks shortcuts" "insight shortcuts";gap:28px}}
+@container taskflow (max-width:850px){.tf-day-layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"tasks" "insight" "shortcuts"}.tf-day-insight-panel{padding:20px}.tf-day-ring{width:210px}}
+@container taskflow (max-width:420px){.tf-day-metrics{grid-template-columns:1fr}.tf-day-status-grid{grid-template-columns:1fr}.tf-root .tf-day-main .tf-home-task,.tf-root .tf-home-task{padding:14px;gap:8px}}

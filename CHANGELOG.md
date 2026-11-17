@@ -4,6 +4,18 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-17
+
+### Added
+- Tagesüberblick zwischen Aufgaben und Funktionskacheln: Status-Ringdiagramm, Tagesfortschritt, heutige Abschlüsse, Restaufgaben und geplante Zeitblöcke.
+- Kompaktes Balkendiagramm für Abschlüsse der letzten sieben Kalendertage; archivierte Abschlüsse werden mitgezählt, gelöschte/übersprungene/ersetzte Termine ausgeschlossen.
+- Aufklappbare Aufgabendetails auf der Startseite mit Notiztext, Tags, Projekt und interaktiven Teilaufgaben; Zustand bleibt bei Aktualisierungen erhalten.
+
+### Changed
+- Tagesaufgaben als neu gegliederte graue Karten mit klaren Status-/Prioritätsmarkern, Terminzeile und eigenen Detail-/Bearbeiten-Aktionen.
+- Responsive Startseite: drei Bereiche nebeneinander auf breiten Panels, gestapelte Tagesaufgaben/Statistik auf mittleren Panels, vollständige vertikale Anordnung auf schmalen Panels.
+- Bestehende Daten, Einstellungen und acht Hauptmenükacheln bleiben erhalten. Kein rückwirkendes Ergänzen oder Ändern von Abschlussdaten.
+
 ## [0.16.1] - 2026-11-17
 
 ### Changed

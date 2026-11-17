@@ -1,5 +1,15 @@
 # TaskFlow Kanban für Obsidian
 
+## Mein Tag: Tagesstatistik und aufklappbare Aufgaben (0.17.0)
+
+Die Startseite zeigt auf breiten Panels **Tagesaufgaben links**, **Tagesüberblick in der Mitte** und die **acht Funktionskacheln rechts**. Auf mittleren Panels steht die Statistik unter den Aufgaben; auf schmalen Panels werden die drei Bereiche untereinander angeordnet.
+
+Der Tagesüberblick enthält ein Status-Ringdiagramm mit Tagesfortschritt, Statuszahlen, heute abgeschlossene Aufgaben, verbleibende Tagesaufgaben, geplante Zeitblöcke und deren geschätzte Dauer sowie ein Balkendiagramm der Abschlüsse der letzten sieben Kalendertage. **Gesamte Statistik öffnen** führt zur bisherigen Analyseansicht.
+
+Die Tagesmenge ist die Vereinigung von heute fälligen, heute geplanten und heute abgeschlossenen Aufgaben; eine Aufgabe mit mehreren passenden Daten zählt nur einmal. Archivierte Abschlüsse werden berücksichtigt. Papierkorb, übersprungene/ersetzte Serientermine und archivierte offene Aufgaben bleiben ausgeschlossen. Eine vorzeitig erledigte Aufgabe mit heutiger Fälligkeit zählt bereits zum Tagesfortschritt; **Heute abgeschlossen** und der Sieben-Tage-Verlauf zählen dagegen das tatsächliche gespeicherte Abschlussdatum. Wieder geöffnete Aufgaben zählen nicht als Abschluss. Fehlende oder ungültige Abschlussdaten erzeugen keine erfundenen Aktivitäten. Zeitangaben sind geplante Blockdauern, keine erfasste Arbeitszeit.
+
+Die neuen grauen Aufgabenkarten trennen Status/Priorität, Titel, Termine und Aktionen. **Details anzeigen** klappt Notizen, Tags, Projektzuordnung und Teilaufgaben direkt auf. Notizen werden sicher als Text angezeigt, vorhandenes Markdown bleibt unverändert. Teilaufgaben sind ankreuzbar; **Bearbeiten** öffnet weiterhin den vollständigen Editor und **In Obsidian öffnen** die Originalnotiz. Der Detailzustand bleibt bei Aktualisierungen in der geöffneten Ansicht erhalten. Aufgaben abzuschließen aktualisiert den Tagesfortschritt auch dann, wenn die Aufgabe automatisch ins Archiv wechselt.
+
 ## Zentrale Settings (0.16.0)
 
 Die achte Kachel **Settings** im Hauptmenü und **Settings** oben rechts auf jeder TaskFlow-Seite öffnen dasselbe zentrale Fenster. Die acht Kacheln bilden vier vollständige Zweierreihen. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.

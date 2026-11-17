@@ -555,3 +555,15 @@ test('live settings preview can be discarded without persisting or changing proj
 test('task sorting is stable and nonmutating and contrast calculation has expected endpoints',()=>{
  const items=[{meta:{title:'B',priority:'low',due:''}},{meta:{title:'A',priority:'high',due:'2026-11-17'}}];assert.equal(core.sortedTasks(items,'due')[0],items[1]);assert.equal(core.sortedTasks(items,'priority')[0],items[1]);assert.equal(items[0].meta.title,'B');assert.equal(core.contrastRatio('#000000','#ffffff'),21);assert.equal(core.contrastRatio('#ffffff','#ffffff'),1);
 });
+
+test('daily overview counts matching due and scheduled dates once and retains archived completions',()=>{
+ const make=(id,meta)=>({file:{path:id+'.md'},meta:{id,title:id,status:'open',...meta},body:'Notes remain unchanged'});
+ const tasks=[make('both',{scheduled:'2026-11-17',due:'2026-11-17',status:'progress',scheduledTime:'10:00',durationMinutes:45}),make('done',{status:'done',completed:'2026-11-17T12:00:00',archived:true}),make('earlier',{status:'done',completed:'2026-11-16T12:00:00',archived:true}),make('trash',{due:'2026-11-17',trashed:true}),make('skip',{due:'2026-11-17',recurrenceSkipped:true}),make('replaced',{due:'2026-11-17',recurrenceSuperseded:true}),make('archived-open',{due:'2026-11-17',archived:true})];
+ const snapshot=JSON.stringify(tasks),data=core.dailyInsight(tasks,'2026-11-17');assert.equal(data.summary.total,2);assert.equal(data.summary.progress,1);assert.equal(data.summary.done,1);assert.equal(data.percent,50);assert.equal(data.completedToday,1);assert.equal(data.remaining,1);assert.equal(data.timed,1);assert.equal(data.plannedMinutes,45);assert.equal(data.days.at(-1).count,1);assert.equal(data.days.at(-2).count,1);assert.equal(JSON.stringify(tasks),snapshot);
+});
+test('daily charts handle empty days, reopened tasks and invalid completion dates without inventing activity',()=>{
+ const data=core.dailyInsight([{meta:{title:'Reopened',status:'open',completed:'2026-11-17T12:00:00'},body:''},{meta:{title:'Unknown date',status:'done',completed:'invalid',archived:true},body:''}],'2026-11-17');assert.equal(data.summary.total,0);assert.equal(data.percent,0);assert.equal(data.completedToday,0);assert.equal(data.days.length,7);assert.ok(data.days.every(d=>d.count===0));assert.equal(data.days[0].key,'2026-11-11');assert.equal(data.days.at(-1).key,'2026-11-17');
+});
+test('daily progress includes early completions assigned to today and separates actual completion activity',()=>{
+ const data=core.dailyInsight([{meta:{title:'Early delivery',status:'done',due:'2026-11-17',completed:'2026-11-16T12:00:00',archived:true},body:''}],'2026-11-17');assert.equal(data.summary.total,1);assert.equal(data.percent,100);assert.equal(data.completedToday,0);assert.equal(data.days.at(-2).count,1);
+});
