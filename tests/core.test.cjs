@@ -567,3 +567,32 @@ test('daily charts handle empty days, reopened tasks and invalid completion date
 test('daily progress includes early completions assigned to today and separates actual completion activity',()=>{
  const data=core.dailyInsight([{meta:{title:'Early delivery',status:'done',due:'2026-11-17',completed:'2026-11-16T12:00:00',archived:true},body:''}],'2026-11-17');assert.equal(data.summary.total,1);assert.equal(data.percent,100);assert.equal(data.completedToday,0);assert.equal(data.days.at(-2).count,1);
 });
+
+test('active board excludes project tasks while home, planner, calendar, statistics and archive retain them',()=>{
+ const plain={meta:{status:'open'},body:''},project={meta:{status:'progress',taskflowProject:'p'},body:''},series={meta:{status:'open',taskflowProject:'p',recurrenceSeries:'s'},body:''};
+ const tasks=[plain,project,series];assert.equal(core.tasksForView(tasks,'board').length,1);assert.equal(core.tasksForView(tasks,'board')[0],plain);assert.equal(core.tasksForView(tasks,'planner','status').length,2);for(const mode of ['home','stats','projects'])assert.equal(core.tasksForView(tasks,mode).length,3);assert.equal(core.tasksForView(tasks,'planner','calendar').length,3);assert.equal(core.tasksForView(tasks,'board','agenda',true).length,3);
+});
+function projectDeleteFixture(){
+ const make=(id,extra={})=>{const meta={taskflow:1,id,title:id,status:'open',taskflowProject:'p',custom:{keep:42},...extra},body='## Notizen\nKeep original text\n- [ ] Keep subtask\n';return {file:{path:'Tasks/'+id+'.md'},meta,body,raw:core.encode(meta,body)};};
+ const items=[make('normal',{projects:['foreign-link']}),make('completed',{status:'done',archived:true,completed:'2026-11-17T12:00:00'}),make('trash',{trashed:true,taskflowTrash:{batch:'keep'}}),make('source',{recurrence:{frequency:'weekly',interval:1,start:'2026-11-17'},recurrenceTemplate:{meta:{title:'Template',taskflowProject:'p'},body:'Template notes'}}),make('other',{taskflowProject:'q'})];
+ const {p,files}=memoryPlugin(items);p.settings.projects=[{id:'p',name:'Project',description:'Keep description',note:'Projects/Keep.md',archived:false},{id:'q',name:'Other'}];p.settings.savedFilters=[{id:'f',name:'Project filter',filters:{project:'p',status:'open'},custom:'keep'}];p.saveData=async()=>{};p.scan=async()=>{p.tasks=[...files].map(([path,raw])=>({file:{path},raw,...core.decode(raw)}));};return {p,files,original:core.projects(p.settings)[0]};
+}
+test('deleting a project detaches ordinary, archived and trashed tasks plus recurrence templates without deleting files or content',async()=>{
+ const {p,files,original}=projectDeleteFixture(),before=[...p.tasks];await p.deleteProject(original);assert.equal(files.size,before.length);assert.equal(core.projects(p.settings).length,1);assert.equal(core.deletedProjects(p.settings)[0].name,'Project');assert.equal(core.deletedProjects(p.settings)[0].note,'Projects/Keep.md');
+ for(const old of before){const task=p.tasks.find(t=>t.file.path===old.file.path);assert.equal(task.body,old.body);assert.equal(task.meta.custom.keep,42);assert.equal(task.meta.status,old.meta.status);assert.equal(task.meta.archived,old.meta.archived);assert.equal(task.meta.completed,old.meta.completed);assert.equal(task.meta.trashed,old.meta.trashed);assert.equal(task.meta.taskflowProject,old.meta.id==='other'?'q':undefined);}
+ assert.equal(p.tasks[0].meta.projects[0],'foreign-link');const source=p.tasks.find(t=>t.meta.id==='source');assert.equal(source.meta.recurrenceTemplate.meta.taskflowProject,undefined);assert.equal(source.meta.recurrenceTemplate.body,'Template notes');assert.equal(core.recurrenceOccurrence(source,'2026-11-24').meta.taskflowProject,'');
+ assert.equal(p.settings.savedFilters[0].filters.project,'');assert.equal(p.settings.savedFilters[0].filters.status,'open');assert.equal(p.settings.savedFilters[0].custom,'keep');assert.equal(p.seriesEditing,false);assert.equal(p.deletingProject,null);
+});
+test('restoring a deleted project restores its definition but never reassigns tasks that may have moved elsewhere',async()=>{
+ const {p,original}=projectDeleteFixture();await p.deleteProject(original);const deleted=core.deletedProjects(p.settings)[0];await p.restoreProject(deleted);assert.equal(core.projects(p.settings).find(v=>v.id==='p').description,'Keep description');assert.equal(core.deletedProjects(p.settings).length,0);assert.equal(p.tasks[0].meta.taskflowProject,undefined);await assert.rejects(()=>p.restoreProject(deleted),/inzwischen/);
+});
+test('failed project setting saves roll back task changes and retain the original definition',async()=>{
+ const {p,files,original}=projectDeleteFixture(),snapshot=JSON.stringify([...files]);p.saveData=async()=>{throw new Error('disk full')};await assert.rejects(()=>p.deleteProject(original),/disk full/);assert.equal(JSON.stringify([...files]),snapshot);assert.equal(core.projects(p.settings).length,2);assert.equal(core.deletedProjects(p.settings).length,0);assert.equal(p.seriesEditing,false);assert.equal(p.deletingProject,null);
+});
+test('a partial project detach failure rolls back completed writes and rejects stale project editors before writes',async()=>{
+ const {p,files,original}=projectDeleteFixture(),snapshot=JSON.stringify([...files]);const process=p.app.vault.process;let calls=0;p.app.vault.process=async(f,fn)=>{if(++calls===2)throw new Error('write failed');return process(f,fn)};await assert.rejects(()=>p.deleteProject(original),/write failed/);assert.equal(JSON.stringify([...files]),snapshot);
+ p.settings.projects[0].name='Changed';await assert.rejects(()=>p.deleteProject(original),/inzwischen/);assert.equal(JSON.stringify([...files]),snapshot);
+});
+test('concurrent new assignments to deleting or deleted projects are rejected without creating task files',async()=>{
+ const {p,files,original}=projectDeleteFixture(),size=files.size;p.deletingProject='p';await assert.rejects(()=>p.saveTask(null,{title:'new',status:'open',taskflowProject:'p'},''),/gelöscht/);assert.equal(files.size,size);p.deletingProject=null;await p.deleteProject(original);await assert.rejects(()=>p.saveTask(null,{title:'new',status:'open',taskflowProject:'p'},''),/gelöscht/);assert.equal(files.size,size);
+});

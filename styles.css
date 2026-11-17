@@ -488,7 +488,7 @@
 .tf-root.tf-customized .tf-calendar-day-column,.tf-root.tf-customized .tf-calendar-flex-cell,.tf-root.tf-customized .tf-calendar-header{border-color:var(--tf-calendar-grid-color,var(--tf-line))}
 .tf-root.tf-customized progress::-webkit-progress-value{background:var(--tf-progress,#999)}
 .tf-root.tf-customized progress::-moz-progress-bar{background:var(--tf-progress,#999)}
-.tf-root.tf-customized .tf-home-navigation{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-direction:row-reverse}
+.tf-root.tf-customized .tf-home-navigation{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex-direction:row}
 .tf-root.tf-customized[data-tf-density="compact"] .tf-card{padding:12px;margin-bottom:12px}
 .tf-root.tf-customized[data-tf-density="spacious"] .tf-card{padding:30px;margin-bottom:28px}
 .tf-root[data-tf-show-notes="false"] .tf-card-note,.tf-root[data-tf-show-tags="false"] .tf-tags,.tf-root[data-tf-show-dates="false"] .tf-card>.tf-due,.tf-root[data-tf-show-project="false"] .tf-card-project,.tf-root[data-tf-show-legend="false"] .tf-legend{display:none}

@@ -1,5 +1,15 @@
 # TaskFlow Kanban für Obsidian
 
+## Projekte und unabhängiges Board (0.17.2)
+
+Das aktive **Board** zeigt ausschließlich unabhängige Einzelaufgaben. Aufgaben mit `taskflowProject` sind ausgeschlossen, ebenso Projektserien im Wiederholtermine-Reiter. Sie bleiben über **Projekte**, auf der **Startseite**, im **Tagesplaner/Kalender**, in **Statistiken** und im **Archiv** verfügbar. Eine Projektzuordnung im Aufgabeneditor entfernt die Aufgabe deshalb unmittelbar aus dem aktiven Board. Der Projektfilter bleibt in Kalender, Statistik und Archiv nutzbar; Projektseiten führen direkt in den passenden Kalender.
+
+**Projekt löschen** findest du auf der Projektseite und unter **Projekt bearbeiten**. Der Dialog erklärt vorab: Die Projektdefinition wird nach **Gelöschte Projekte** verschoben. Ihre Aufgaben bleiben bestehen, verlieren nur diese Projektzuordnung und erscheinen als unabhängige Einzelaufgaben wieder im Board. Serien bleiben weiterhin im Kalender bzw. Serienmanager. Notiztext, Teilaufgaben, Termine, Status, Abschlussdaten, Archiv-/Papierkorbzustand und fremde Frontmatter-Felder bleiben erhalten. Auch Verknüpfungen in Serienvorlagen werden entfernt, damit neue Folgetermine das gelöschte Projekt nicht erneut übernehmen. Die verknüpfte Projektnotiz wird nicht gelöscht.
+
+Unter **Projekte → Gelöschte Projekte → Projekt wiederherstellen** wird die ursprüngliche Projektdefinition mit Name, Beschreibung und Notizlink wiederhergestellt. Frühere Aufgaben bleiben ohne Projekt und können gezielt neu zugeordnet werden. Gleichnamige bestehende Projekte müssen zuerst umbenannt werden. Beim Löschen sichern Konfliktprüfungen die betroffenen Dateien; bei Schreib- oder Speicherfehlern werden eigene Änderungen zurückgenommen, ohne gleichzeitige Fremdänderungen zu überschreiben.
+
+Der **Settings-Button oben rechts entfällt auf allen TaskFlow-Seiten**. Innerhalb von TaskFlow öffnet ausschließlich die achte **Settings-Kachel** auf der Startseite das zentrale Fenster. Der Obsidian-Plugin-Eintrag und der Tastaturbefehl bleiben als alternative App-Zugänge erhalten.
+
 ## Mein Tag: Tagesstatistik und aufklappbare Aufgaben (0.17.0)
 
 Die Startseite zeigt auf breiten Panels **Tagesaufgaben links**, **Tagesüberblick in der Mitte** und die **acht Funktionskacheln rechts**. Auf mittleren Panels steht die Statistik unter den Aufgaben; auf schmalen Panels werden die drei Bereiche untereinander angeordnet.
@@ -12,7 +22,7 @@ Die neuen grauen Aufgabenkarten trennen Status/Priorität, Titel, Termine und Ak
 
 ## Zentrale Settings (0.16.0)
 
-Die achte Kachel **Settings** im Hauptmenü und **Settings** oben rechts auf jeder TaskFlow-Seite öffnen dasselbe zentrale Fenster. Die acht Kacheln bilden vier vollständige Zweierreihen. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.
+Die achte Kachel **Settings** im Hauptmenü öffnet das zentrale Fenster. Die acht Kacheln bilden vier vollständige Zweierreihen. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.
 
 - **Allgemein:** Deutsch/Englisch, Startansicht, Filterfavoriten und sanfte Animationen. Reduzierte Bewegung des Betriebssystems wird immer beachtet.
 - **Design & Schrift:** Obsidian folgen, Hell oder Dunkel ausschließlich für TaskFlow; Schriftfamilie, Grundschriftgröße, getrennte Größen für Seitenüberschriften, Aufgabentitel, Detailtexte, Kalender und Kacheln sowie Zeilenhöhe.
@@ -33,7 +43,7 @@ Die Optionen orientieren sich an [Obsidians Darstellungseinstellungen](https://o
 
 Die zusätzliche Kachel **Projekte** im Hauptmenü bündelt Vorhaben in einer zentralen Übersicht. **Neues Projekt** erfasst Name, Beschreibung und optional einen relativen Pfad zu einer Projektnotiz (z. B. `Projekte/Website.md`). **Projekt bearbeiten** erlaubt Umbenennen und Archivieren. Stabile IDs erhalten dabei alle Aufgabenzuordnungen; das Archivieren eines Projekts verändert keine Aufgaben oder Termine.
 
-Im Aufgabeneditor wählst du ein Projekt oder **Ohne Projekt**. Aufgabenkarten zeigen die Zuordnung. Der Projektfilter lässt sich mit Suche, Status, Priorität, Tags und Fälligkeit kombinieren und als Filterfavorit speichern. Projektseiten führen direkt zum gefilterten Board oder Kalender. Neue Aufgaben werden weiterhin ausschließlich im Board erfasst.
+Im Aufgabeneditor wählst du ein Projekt oder **Ohne Projekt**. Aufgabenkarten zeigen die Zuordnung. Der Projektfilter lässt sich mit Suche, Status, Priorität, Tags und Fälligkeit kombinieren und als Filterfavorit speichern. Projektseiten führen direkt zum gefilterten Kalender; Projektaufgaben bleiben vom unabhängigen Board ausgeschlossen. Neue Aufgaben werden weiterhin ausschließlich im Board erfasst.
 
 Der Fortschritt zählt aktive Aufgaben und archivierte Abschlüsse. Papierkorbeinträge, übersprungene und ersetzte Serientermine sowie manuell archivierte offene Aufgaben zählen nicht. Serientermine zählen einzeln; Projektseiten zeigen zunächst maximal 20 Aufgaben und lassen sich erweitern. Neue Serientermine übernehmen das Projekt; Serienänderungen gelten entsprechend der gewählten Option nur für einen Termin oder für ungeschützte Folgetermine.
 

@@ -4,6 +4,19 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-17
+
+### Changed
+- Projektaufgaben und Projektserien aus dem aktiven Board ausgeschlossen; Startseite, Projekte, Tagesplaner, Kalender, Statistik und Archiv behalten sie bei.
+- Veralteten Board-Zugang auf Projektseiten entfernt; Projektfilter im aktiven unabhängigen Board ausgeblendet.
+- Settings-Button oben rechts entfernt. Die achte Settings-Kachel im Hauptmenü bleibt erhalten.
+
+### Added
+- Projekt löschen auf Projektseite und im Projekteditor, mit bestätigendem Dialog und Erhalt sämtlicher Aufgabeninhalte.
+- Projektzuordnungen werden gezielt aus Aufgaben und Serienvorlagen entfernt; Status, Notizen, Teilaufgaben, Termine und fremde Metadaten bleiben erhalten. Keine Dateien werden gelöscht.
+- Gelöschte Projektdefinitionen lassen sich über „Gelöschte Projekte“ wiederherstellen; Aufgaben bleiben ohne Projekt und werden nicht automatisch neu zugeordnet.
+- Konfliktschutz, Rücknahme eigener Schreibvorgänge bei Fehlern und Sperre neuer Zuordnungen zu gerade gelöschten Projekten.
+
 ## [0.17.1] - 2026-11-17
 
 ### Changed
