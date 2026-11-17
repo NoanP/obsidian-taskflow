@@ -4,6 +4,11 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-17
+
+### Changed
+- Settings als achte Funktionskachel im Hauptmenü ergänzt: vier vollständige Zweierreihen mit passendem Zahnradsymbol. Öffnet dasselbe zentrale Einstellungsfenster; der direkte Zugang auf Unterseiten bleibt erhalten.
+
 ## [0.16.0] - 2026-11-17
 
 ### Added

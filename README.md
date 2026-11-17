@@ -2,7 +2,7 @@
 
 ## Zentrale Settings (0.16.0)
 
-**Settings** oben rechts auf jeder TaskFlow-Seite öffnet das zentrale Fenster. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.
+Die achte Kachel **Settings** im Hauptmenü und **Settings** oben rechts auf jeder TaskFlow-Seite öffnen dasselbe zentrale Fenster. Die acht Kacheln bilden vier vollständige Zweierreihen. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.
 
 - **Allgemein:** Deutsch/Englisch, Startansicht, Filterfavoriten und sanfte Animationen. Reduzierte Bewegung des Betriebssystems wird immer beachtet.
 - **Design & Schrift:** Obsidian folgen, Hell oder Dunkel ausschließlich für TaskFlow; Schriftfamilie, Grundschriftgröße, getrennte Größen für Seitenüberschriften, Aufgabentitel, Detailtexte, Kalender und Kacheln sowie Zeilenhöhe.

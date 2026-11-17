@@ -84,6 +84,7 @@ const NAVIGATION={board:'Board',planner:'Tagesplaner',stats:'Statistik',archive:
 function hiddenNavigation(settings){return Array.isArray(settings.hiddenNavigation)?settings.hiddenNavigation.filter(key=>Object.hasOwn(NAVIGATION,key)):[];}
 function startView(settings){const value=settings.preferences?.startView||settings.startView;return ['home','board','planner','stats','projects'].includes(value)?value:'home';}
 const HOME_DESTINATIONS={
+  settings:{label:'Settings',icon:'settings',description:'Design & Schrift'},
   projects:{label:'Projekte',icon:'folder-kanban',description:'Aufgaben bündeln und Fortschritt sehen',mode:'projects'},
   board:{label:'Board',icon:'kanban-square',description:'Einzelaufgaben im Überblick',mode:'board'},
   planner:{label:'Tagesplaner',icon:'list-todo',description:'Den Arbeitstag planen',mode:'planner'},
@@ -790,7 +791,7 @@ class TaskView extends ItemView {
     button(focus,tr('Alle Aufgaben öffnen →'),()=>this.openHomeDestination('board'),'tf-text-button');
     const shortcuts=layout.createEl('section',{cls:'tf-day-shortcuts',attr:{'aria-label':tr('Schnellzugriff')}});shortcuts.createEl('h2',{text:tr('Schnellzugriff'),cls:'tf-day-heading'});
     const tiles=shortcuts.createDiv({cls:'tf-day-tile-grid'});
-    for(const key of ['board','calendar','projects','series','stats','archive','trash']){
+    for(const key of ['board','calendar','projects','series','stats','archive','trash','settings']){
       const destination=HOME_DESTINATIONS[key],tile=button(tiles,'',()=>this.openHomeDestination(key),'tf-day-tile');tile.setAttribute('aria-label',(uiLanguage==='en'?'Open '+tr(destination.label):destination.label+tr(' öffnen')));
       const icon=tile.createSpan({cls:'tf-day-tile-icon',attr:{'aria-hidden':'true'}});if(typeof setIcon==='function')setIcon(icon,destination.icon);
       tile.createSpan({text:tr(destination.label),cls:'tf-day-tile-title'});tile.createSpan({text:tr(destination.description),cls:'tf-day-tile-description'});
@@ -814,7 +815,7 @@ class TaskView extends ItemView {
     }
   }
   goHome(){this.mode='home';this.showArchive=false;this.archiveMode='tasks';this.boardMode='tasks';this.plannerMode='agenda';this.seriesQuery='';this.resetFilters();this.contentEl.scrollTop=0;}
-  openHomeDestination(key){Object.assign(this,homeDestination(key));if(this.mode==='planner'){this.plannerDate=today();this.calendarSpan=effectivePreferences(this.plugin).calendarView;}if(this.mode==='projects'){this.projectId='';this.projectArchive=false;this.projectExpanded=false;}this.resetFilters();if(this.contentEl)this.contentEl.scrollTop=0;}
+  openHomeDestination(key){if(key==='settings'){new SettingsModal(this.plugin).open();return;}Object.assign(this,homeDestination(key));if(this.mode==='planner'){this.plannerDate=today();this.calendarSpan=effectivePreferences(this.plugin).calendarView;}if(this.mode==='projects'){this.projectId='';this.projectArchive=false;this.projectExpanded=false;}this.resetFilters();if(this.contentEl)this.contentEl.scrollTop=0;}
   homeTask(parent,task){
     const priority=Object.hasOwn(PRIORITIES,task.meta.priority)?task.meta.priority:'normal';
     const row=parent.createDiv({cls:`tf-home-task tf-status-${task.meta.status} tf-priority-${priority}`});
