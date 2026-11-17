@@ -4,6 +4,20 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-17
+
+### Added
+- Zentrales Settings-Fenster auf jeder Seite, über die Obsidian-Plugin-Einstellungen und als Befehl erreichbar; sechs geordnete Bereiche mit Live-Vorschau, Speichern und verwerfbaren Entwürfen.
+- Je 27 individuelle Farbwerte für Hell und Dunkel, Farbwähler/HEX, Rückkehr zum geerbten Standard und Kontrastprüfung. Farbmodus nur für TaskFlow: Obsidian folgen, Hell, Dunkel.
+- Schriftfamilie, sieben getrennte Schriftgrößen/Zeilenhöhe, Dichte, Spaltenbreite, Kartenecken, Kachelhöhe, Inhaltsbreite und sichtbare Karten-Details.
+- Deutsche und englische Oberflächenbeschriftungen ohne Änderung von Nutzerinhalten oder gespeicherten Status-IDs.
+- Startansicht, Favoriten-Sichtbarkeit, Animationen, Kalenderstandard, Wochenbeginn, Stundenfenster, Aufgabenstandards, Sortierung und optionale automatische Archivierung.
+- Bereinigter Export/Import ausschließlich der neuen Optionen; Zurücksetzen mit Vorschau. Konfliktschutz beim Speichern hält parallele Änderungen intakt.
+
+### Compatibility
+- Vorhandene Aufgaben, Projekte, eigene Filter und fremde Plugins werden nicht migriert oder umgeschrieben. Der bisherige graue Look und automatische Archivierung bleiben Standard.
+- Die Versionsnummer 0.16.0 bezeichnet dieses Settings-Update; Schnellerfassung und Vorlagen sind damit noch nicht implementiert.
+
 ## [0.15.0] - 2026-11-16
 
 ### Added

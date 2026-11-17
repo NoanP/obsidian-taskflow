@@ -1,5 +1,24 @@
 # TaskFlow Kanban für Obsidian
 
+## Zentrale Settings (0.16.0)
+
+**Settings** oben rechts auf jeder TaskFlow-Seite öffnet das zentrale Fenster. Alternativ: Obsidian-Einstellungen → TaskFlow → Settings oder der TaskFlow-Befehl **Settings**.
+
+- **Allgemein:** Deutsch/Englisch, Startansicht, Filterfavoriten und sanfte Animationen. Reduzierte Bewegung des Betriebssystems wird immer beachtet.
+- **Design & Schrift:** Obsidian folgen, Hell oder Dunkel ausschließlich für TaskFlow; Schriftfamilie, Grundschriftgröße, getrennte Größen für Seitenüberschriften, Aufgabentitel, Detailtexte, Kalender und Kacheln sowie Zeilenhöhe.
+- **Farben im Detail:** 27 getrennte Farben je Hell-/Dunkelpalette, über Farbwähler oder HEX. Unter anderem Seiten-, Karten-, Formular-, Notiz-, Tag-, Kachel- und Kalenderflächen, Text, Symbole, Linien, Fortschritt sowie jeder Status und jede Priorität. **Standard** entfernt die individuelle Überschreibung. **Kontrast prüfen** prüft Haupttext gegen Seitenhintergrund (4,5:1 als Richtwert). Die Palette gilt entsprechend dem aktiven Farbmodus; im Modus Obsidian folgen bleiben nicht überschriebene Werte am Obsidian-Design orientiert.
+- **Layout & Karten:** kompakte/normale/großzügige Abstände, minimale Spaltenbreite, Kartenecken, Kachelhöhe und maximale Inhaltsbreite. Notizen, Tags, Termine, Projektname und Farblegende sind ausblendbar. Versteckte Inhalte bleiben gespeichert und im Editor verfügbar. Breite Boards lassen sich horizontal scrollen.
+- **Kalender & Aufgaben:** Standard-Tag-/Wochenansicht, Montag/Sonntag als Wochenbeginn, sichtbares Stundenfenster, Standardstatus, Priorität und Dauer neuer Aufgaben, Sortierung und automatische Archivierung beim Erledigen. Ereignisse außerhalb des gewählten Stundenfensters erweitern die Ansicht und verschwinden nicht. Beim Erstellen über eine bestimmte Boardspalte hat deren Status bzw. Priorität Vorrang.
+- **Sichern & Zurücksetzen:** Einstellungen als JSON exportieren/importieren und zurücksetzen. Der Export enthält ausschließlich diese Optionen, keine Aufgaben, Projekte, Filterfavoriten, Notizen oder Zugangsdaten.
+
+Änderungen sind zunächst eine **Live-Vorschau**. Erst **Speichern** übernimmt sie dauerhaft; **Abbrechen** oder Schließen stellt den gespeicherten Stand wieder her. Import und Zurücksetzen laden ebenfalls zunächst nur eine Vorschau. Gleichzeitige Settings-Änderungen werden nicht still überschrieben. Einstellungen bleiben lokal in der bestehenden `data.json`; Aufgaben, Originaldateien und andere Plugins werden beim Speichern nicht umgeschrieben. Vorhandene Startansicht und Filterfavoriten-Sichtbarkeit werden berücksichtigt.
+
+Deutsch ist Standard; die Oberfläche kann auf Englisch wechseln. Titel, Notizen, Tags, Projektnamen, eigene Filterbezeichnungen und Markdown-Inhalte bleiben in ihrer ursprünglichen Sprache. Bestehende Datumswerte bleiben unverändert. Einzelne technische Fehlermeldungen können weiterhin aus Obsidian oder dem Dateisystem stammen.
+
+Die automatische Archivierung ist standardmäßig aktiv. Beim Abschalten werden zukünftige Abschlüsse nicht automatisch archiviert; bereits archivierte Aufgaben bleiben dort. Es findet keine rückwirkende Sammeländerung statt. Für ein vollständiges Backup weiterhin Aufgabenordner und TaskFlow-Pluginordner einschließlich `data.json` sichern.
+
+Die Optionen orientieren sich an [Obsidians Darstellungseinstellungen](https://obsidian.md/help/appearance), [TickTicks Anzeigeoptionen](https://help.ticktick.com/articles/7055792921664028672) und [Todoists Sprachwahl](https://www.todoist.com/help/account-and-billing/account/change-languages-in-todoist-EJZMow). Bestehende graue Voreinstellungen bleiben erhalten; neue eigene Farben sind optional.
+
 ## Projekte (0.15.0)
 
 Die zusätzliche Kachel **Projekte** im Hauptmenü bündelt Vorhaben in einer zentralen Übersicht. **Neues Projekt** erfasst Name, Beschreibung und optional einen relativen Pfad zu einer Projektnotiz (z. B. `Projekte/Website.md`). **Projekt bearbeiten** erlaubt Umbenennen und Archivieren. Stabile IDs erhalten dabei alle Aufgabenzuordnungen; das Archivieren eines Projekts verändert keine Aufgaben oder Termine.

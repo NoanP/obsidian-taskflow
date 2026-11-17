@@ -523,3 +523,35 @@ test('series project changes propagate to unprotected future terms and single ed
 test('legacy recurrence templates do not leak a single occurrence project into future terms',()=>{
  const source=seriesFixture()[0];source.meta.taskflowProject='single-only';source.meta.recurrenceTemplate={meta:{title:'Template',priority:'normal',tags:[]},body:source.body};assert.equal(core.recurrenceOccurrence(source,'2026-11-20').meta.taskflowProject,'');
 });
+
+test('preferences preserve legacy start view and favorite visibility while sanitizing unsafe imports',()=>{
+ const p=core.preferences({startView:'planner',hiddenNavigation:['favorites'],preferences:{fontSize:999,columnWidth:-1,calendarStart:23,calendarEnd:1,lineHeight:NaN,language:'script',theme:'dark',colors:{dark:{text:'url(https://bad)',canvas:'#ABCDEF',unknown:'#123456'}},showNotes:'false'}});
+ assert.equal(p.startView,'planner');assert.equal(p.showFavorites,false);assert.equal(p.fontSize,24);assert.equal(p.columnWidth,220);assert.equal(p.calendarEnd,24);assert.equal(p.lineHeight,1.5);assert.equal(p.language,'de');assert.equal(p.theme,'dark');assert.equal(p.colors.dark.canvas,'#abcdef');assert.equal(p.colors.dark.text,undefined);assert.equal(p.colors.dark.unknown,undefined);assert.equal(p.showNotes,true);
+ const a=core.preferences();a.colors.dark.text='#ffffff';assert.equal(core.preferences().colors.dark.text,undefined);
+});
+test('saving preferences preserves projects, filters and task files, rejects stale dialogs and failed saves',async()=>{
+ const {p,files}=memoryPlugin([]);p.settings.projects=[{id:'p',name:'Keep'}];p.settings.savedFilters=[{id:'f',name:'Keep',filters:{}}];p.saveData=async()=>{};
+ const initial=JSON.stringify(core.preferences(p.settings));await p.savePreferences({...core.preferences(p.settings),fontSize:18,theme:'dark'},initial);assert.equal(p.settings.preferences.fontSize,18);assert.equal(p.settings.projects[0].id,'p');assert.equal(p.settings.savedFilters[0].id,'f');assert.equal(files.size,0);
+ await assert.rejects(()=>p.savePreferences(core.preferences(),initial),/inzwischen/);const snapshot=JSON.stringify(p.settings);p.saveData=async()=>{throw new Error('disk full')};await assert.rejects(()=>p.savePreferences(core.preferences(),JSON.stringify(core.preferences(p.settings))),/disk full/);assert.equal(JSON.stringify(p.settings),snapshot);
+});
+test('calendar preferences change week start and visible hours without clipping outlying events',()=>{
+ assert.equal(core.plannerWeek('2026-11-17',0)[0],'2026-11-15');assert.equal(core.plannerWeek('2026-11-17',1)[0],'2026-11-16');
+ const item={meta:{scheduled:'2026-11-17',scheduledTime:'05:00',durationMinutes:30}};const bounds=core.calendarBounds([item],['2026-11-17'],{calendarStart:9,calendarEnd:18});assert.equal(bounds.start,300);assert.equal(bounds.end,1080);
+});
+test('automatic archive remains enabled by default and can be disabled for future completions',()=>{
+ const p=new Plugin();p.settings={preferences:{autoArchive:false}};const meta={status:'done',custom:42};p.stamp(meta,'open');assert.ok(meta.completed);assert.ok(!meta.archived);assert.equal(meta.custom,42);p.settings.preferences.autoArchive=true;p.stamp(meta,'done');assert.equal(meta.archived,true);
+});
+function appearanceRoot(dark=false){const vars=new Map();return {vars,dataset:{},classList:{add:()=>{}},style:{setProperty:(key,value)=>vars.set(key,value),removeProperty:key=>vars.delete(key)},ownerDocument:{body:{classList:{contains:()=>dark}}}};}
+test('forced color modes are local, color overrides are isolated per palette and follow mode removes overrides',()=>{
+ const root=appearanceRoot(true),plugin={settings:{preferences:{theme:'light',colors:{light:{text:'#111111'},dark:{text:'#ffffff'}}}}};core.applyPreferences(root,plugin);assert.equal(root.vars.get('--tf-ink'),'#111111');assert.equal(root.style.colorScheme,'light');assert.equal(root.vars.get('--tf-canvas'),'#ffffff');
+ plugin.settings.preferences={theme:'obsidian'};core.applyPreferences(root,plugin);assert.equal(root.vars.has('--background-primary'),false);assert.equal(root.vars.has('--tf-ink'),false);assert.equal(root.style.colorScheme,'dark');
+});
+test('English labels change without changing stored status IDs, task names or note bodies',()=>{
+ const root=appearanceRoot(),plugin={settings:{preferences:{language:'en'}}},item={meta:{title:'Meine Aufgaben',status:'open'},body:'Notizen'};core.applyPreferences(root,plugin);try{assert.equal(core.STATES.open,'Open');assert.equal(core.tr('Meine Aufgaben'),'My tasks');assert.equal(core.tfmt('{0} archivierte Aufgaben',3),'3 archived tasks');assert.equal(item.meta.title,'Meine Aufgaben');assert.equal(item.body,'Notizen');assert.equal(item.meta.status,'open');}finally{core.applyPreferences(root,{settings:{}});}
+});
+test('live settings preview can be discarded without persisting or changing project settings',()=>{
+ const root=appearanceRoot(),plugin={settings:{projects:[{id:'p'}]},previewPreferences:core.preferences({preferences:{fontSize:22,theme:'dark'}})};core.applyPreferences(root,plugin);assert.equal(root.vars.get('--tf-font-size'),'22px');delete plugin.previewPreferences;core.applyPreferences(root,plugin);assert.equal(root.vars.get('--tf-font-size'),'14px');assert.equal(plugin.settings.projects[0].id,'p');assert.equal(plugin.settings.preferences,undefined);
+});
+test('task sorting is stable and nonmutating and contrast calculation has expected endpoints',()=>{
+ const items=[{meta:{title:'B',priority:'low',due:''}},{meta:{title:'A',priority:'high',due:'2026-11-17'}}];assert.equal(core.sortedTasks(items,'due')[0],items[1]);assert.equal(core.sortedTasks(items,'priority')[0],items[1]);assert.equal(items[0].meta.title,'B');assert.equal(core.contrastRatio('#000000','#ffffff'),21);assert.equal(core.contrastRatio('#ffffff','#ffffff'),1);
+});
