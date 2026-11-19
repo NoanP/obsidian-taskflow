@@ -4,6 +4,17 @@ Alle Änderungen am Plugin werden pro Version dokumentiert. Format: Added, Chang
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-11-19
+
+### Fixed
+- Nachmittags-Zeitblöcke beim Öffnen von Kalender und neuen Datumsbereichen direkt ins Sichtfeld gebracht; Updates derselben Ansicht bewahren manuelle Scrollpositionen.
+- Kurze Serientermine besser lesbar: höhere Zeitskala, Uhrzeit und Serienzeichen in einer gemeinsamen Zeile, mehr Platz für Titel und passende Mindesthöhe bei vergrößerter Schrift.
+- Stundenraster und Drag-and-drop-Berechnung auf denselben Maßstab abgestimmt; ausreichend Platz für visuell vergrößerte Termine am Tagesende.
+
+### Added
+- Direkte Auswahl „Zeitblock anzeigen“ für Termine der sichtbaren Woche bzw. des Tages und Rücksprung „Tagesanfang“.
+- Ausschließlich Darstellung und Navigation geändert; vorhandene Termine und Serienregeln bleiben unverändert.
+
 ## [0.17.2] - 2026-11-17
 
 ### Changed

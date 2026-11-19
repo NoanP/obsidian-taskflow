@@ -366,7 +366,7 @@
 .tf-calendar-body{padding-bottom:36px;align-items:start}
 .tf-calendar-axis{position:relative;min-width:0}
 .tf-calendar-hour{position:absolute;right:8px;font-size:calc(var(--tf-font-size,14px) * 0.7857142857142857);color:var(--tf-quiet);font-variant-numeric:tabular-nums;line-height:1.3;background:var(--background-primary)}
-.tf-calendar-day-column{position:relative;min-width:0;border-left:1px solid var(--tf-line);background-image:repeating-linear-gradient(to bottom,var(--tf-line) 0,var(--tf-line) 1px,transparent 1px,transparent 84px)}
+.tf-calendar-day-column{position:relative;min-width:0;border-left:1px solid var(--tf-line);background-image:repeating-linear-gradient(to bottom,var(--tf-line) 0,var(--tf-line) 1px,transparent 1px,transparent 120px)}
 .tf-calendar-event{position:absolute;z-index:2;display:grid;grid-template-columns:19px minmax(0,1fr);gap:3px;padding:4px;background:var(--tf-card-bg);border:1px solid var(--tf-card-border);border-top:3px solid var(--tf-status-color);border-left:5px solid var(--tf-priority-color);border-radius:4px;min-height:30px;box-sizing:border-box;overflow:hidden;cursor:grab;color:var(--tf-ink)}
 .tf-calendar-event:active{cursor:grabbing}
 .tf-calendar-event.tf-calendar-dragging,.tf-pool-task.tf-calendar-dragging{opacity:.4}
@@ -518,7 +518,7 @@
 .tf-settings-sample-note{background:var(--tf-note-background,var(--tf-surface));color:var(--tf-note-text,var(--tf-ink));padding:12px!important;font-size:var(--tf-font-size,14px)}
 .tf-settings-sample-chips{display:flex;gap:16px;flex-wrap:wrap;font-size:var(--tf-small-size,12px)}
 .tf-root.tf-customized button.tf-day-tile:hover{background:var(--tf-control)}
-.tf-root.tf-customized .tf-calendar-day-column{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 83px,var(--tf-calendar-grid-color,var(--tf-line)) 83px,var(--tf-calendar-grid-color,var(--tf-line)) 84px)}
+.tf-root.tf-customized .tf-calendar-day-column{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 119px,var(--tf-calendar-grid-color,var(--tf-line)) 119px,var(--tf-calendar-grid-color,var(--tf-line)) 120px)}
 
 .view-content.tf-root.tf-customized{background:var(--tf-canvas)!important}
 .tf-root.tf-customized h2,.tf-root.tf-customized h3{color:var(--tf-heading,var(--tf-ink))!important}
@@ -563,3 +563,16 @@
 @container taskflow (max-width:1350px){.tf-day-layout{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-areas:"tasks shortcuts" "insight shortcuts";gap:28px}}
 @container taskflow (max-width:850px){.tf-day-layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"tasks" "insight" "shortcuts"}.tf-day-insight-panel{padding:20px}.tf-day-ring{width:210px}}
 @container taskflow (max-width:420px){.tf-day-metrics{grid-template-columns:1fr}.tf-day-status-grid{grid-template-columns:1fr}.tf-root .tf-day-main .tf-home-task,.tf-root .tf-home-task{padding:14px;gap:8px}}
+
+/* Late events are reached directly; the time grid and pointer math both use 2 px/minute. */
+.tf-calendar-navigation{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.tf-calendar-navigation label{display:flex;align-items:center;gap:10px;min-width:0;font-size:var(--tf-small-size,12px);color:var(--tf-quiet)}
+.tf-root .tf-calendar-navigation select{max-width:min(580px,65vw);min-width:160px;height:auto;padding:7px 10px;background:var(--tf-control-soft);color:var(--tf-ink);border:1px solid var(--tf-line);border-radius:5px;font-size:var(--tf-small-size,12px)}
+.tf-calendar-body{padding-bottom:72px}
+.tf-calendar-event{padding:3px}
+.tf-calendar-event-meta{display:flex;align-items:baseline;justify-content:space-between;gap:6px;width:100%;min-width:0;flex-shrink:0}
+.tf-calendar-event-repeat{font-size:var(--tf-calendar-size,12px);color:var(--tf-quiet);line-height:1.2;flex-shrink:0}
+.tf-calendar-event-meta .tf-calendar-event-time{flex:1;min-width:0}
+.tf-calendar-event-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow-wrap:anywhere;line-height:1.25;max-height:2.5em;flex-shrink:0}
+.tf-root.tf-root button.tf-calendar-edit:focus-visible{outline:2px solid var(--tf-control-line)!important;outline-offset:1px}
+@container taskflow (max-width:560px){.tf-calendar-navigation label{width:100%;flex-wrap:wrap}.tf-root .tf-calendar-navigation select{max-width:100%;width:100%}}

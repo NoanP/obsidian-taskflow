@@ -1,5 +1,13 @@
 # TaskFlow Kanban für Obsidian
 
+## Besser sichtbare Kalender-Zeitblöcke (0.17.3)
+
+Beim Öffnen einer neuen Kalenderwoche bzw. eines Tages wird der Ausschnitt auf einen Zeitblock des gewählten Tages ausgerichtet. Damit sind Nachmittagstermine wie ein Meeting um 14:00 Uhr unmittelbar sichtbar. Der Kalenderbereich wird dabei ins Sichtfeld gebracht. Gibt es am gewählten Tag keinen Zeitblock, dient ein vorhandener Zeitblock der angezeigten Woche als Orientierung; ohne Zeitblöcke bleibt der Tagesanfang sichtbar.
+
+**Zeitblock anzeigen** springt direkt zu einem Termin der sichtbaren Woche bzw. des Tages, auch in horizontal gescrollten Wochenansichten. **Tagesanfang** führt zurück zur flexiblen Terminzeile und den frühen Stunden. Manuell gewählte Scrollpositionen bleiben bei Aktualisierungen derselben Ansicht erhalten.
+
+Die Zeitskala bietet mehr vertikalen Platz. Uhrzeit und Serienzeichen teilen sich eine Zeile, der Titel hat darunter bis zu zwei Zeilen; der vollständige Titel und die tatsächliche Dauer bleiben über die Beschriftung und den Tooltip verfügbar. Bei großer Kalenderschrift wird die visuelle Mindesthöhe der Blöcke berücksichtigt, damit überlappende Darstellungen weiterhin in getrennten Spuren liegen. Datum, Startzeit, Dauer und Serienregeln werden dadurch nicht geändert.
+
 ## Projekte und unabhängiges Board (0.17.2)
 
 Das aktive **Board** zeigt ausschließlich unabhängige Einzelaufgaben. Aufgaben mit `taskflowProject` sind ausgeschlossen, ebenso Projektserien im Wiederholtermine-Reiter. Sie bleiben über **Projekte**, auf der **Startseite**, im **Tagesplaner/Kalender**, in **Statistiken** und im **Archiv** verfügbar. Eine Projektzuordnung im Aufgabeneditor entfernt die Aufgabe deshalb unmittelbar aus dem aktiven Board. Der Projektfilter bleibt in Kalender, Statistik und Archiv nutzbar; Projektseiten führen direkt in den passenden Kalender.

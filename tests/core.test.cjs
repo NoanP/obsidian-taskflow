@@ -172,8 +172,8 @@ test('calendar bounds include early and late scheduled tasks with default workda
  const bounds=core.calendarBounds(tasks,days);assert.equal(bounds.start,300);assert.equal(bounds.end,1440);
 });
 test('calendar pointer targets snap to fifteen minutes and respect grab offset',()=>{
- assert.equal(core.calendarDropMinute(394,100,420),630);
- assert.equal(core.calendarDropMinute(394,100,420,15),615);
+ assert.equal(core.calendarDropMinute(520,100,420),630);
+ assert.equal(core.calendarDropMinute(520,100,420,15),615);
  assert.equal(core.calendarDropMinute(-100,100,0),0);
 });
 test('dated open and in-progress tasks appear on their exact deadlines without writes',()=>{
@@ -595,4 +595,15 @@ test('a partial project detach failure rolls back completed writes and rejects s
 });
 test('concurrent new assignments to deleting or deleted projects are rejected without creating task files',async()=>{
  const {p,files,original}=projectDeleteFixture(),size=files.size;p.deletingProject='p';await assert.rejects(()=>p.saveTask(null,{title:'new',status:'open',taskflowProject:'p'},''),/gelöscht/);assert.equal(files.size,size);p.deletingProject=null;await p.deleteProject(original);await assert.rejects(()=>p.saveTask(null,{title:'new',status:'open',taskflowProject:'p'},''),/gelöscht/);assert.equal(files.size,size);
+});
+
+test('calendar initially focuses the selected day afternoon event instead of leaving it below the morning viewport',()=>{
+ const make=(id,day,time,extra={})=>({file:{path:id},meta:{status:'open',scheduled:day,scheduledTime:time,...extra},body:''});
+ const morning=make('morning','2026-11-16','09:00'),support=make('support','2026-11-17','14:00'),late=make('late','2026-11-17','18:00'),archived=make('archived','2026-11-17','08:00',{archived:true}),flex=make('flex','2026-11-17','');const tasks=[morning,late,archived,flex,support],snapshot=JSON.stringify(tasks),days=core.plannerWeek('2026-11-17');
+ assert.equal(core.calendarFocusTask(tasks,days,'2026-11-17'),support);assert.equal(core.calendarFocusTask(tasks,days,'2026-11-18'),morning);assert.equal(core.calendarFocusTask([flex,archived],days,'2026-11-17'),null);assert.equal(JSON.stringify(tasks),snapshot);
+ const top=core.calendarScrollTarget(840,420,64);assert.equal(top,844);assert.equal(66+64+(840-420)*2-top,126);assert.equal(core.calendarScrollTarget(420,420,0),0);
+});
+test('calendar visual sizing keeps short recurring events readable and accounts for enlarged fonts in overlap lanes',()=>{
+ const make=(id,time)=>({file:{path:id},meta:{status:'open',scheduled:'2026-11-17',scheduledTime:time,durationMinutes:30,recurrenceSeries:'s'},body:''});const tasks=[make('a','14:00'),make('b','14:30')];
+ assert.equal(core.calendarMinimumMinutes(12),30);assert.equal(core.calendarMinimumMinutes(22),60);const normal=core.calendarEvents(tasks,'2026-11-17',core.calendarMinimumMinutes(12));assert.ok(normal.every(e=>e.columns===1));const large=core.calendarEvents(tasks,'2026-11-17',core.calendarMinimumMinutes(22));assert.ok(large.every(e=>e.columns===2));assert.ok(large.every(e=>e.duration===30&&e.displayDuration===60));assert.equal(tasks[0].meta.scheduledTime,'14:00');
 });
